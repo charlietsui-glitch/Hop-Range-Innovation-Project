@@ -1709,80 +1709,37 @@ with tab_demo:
 
         st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
 
-        # ---- 2) Finder tool: "Which areas need X?" ----
-        st.subheader("Find Areas By Need")
-        st.caption("Pick a need and instantly see which neighbourhoods are flagged for it — useful when deciding where to push a new range.")
-        tag_options = [t[0] for t in DEMOGRAPHIC_TAG_RULES]
-        selected_tag = st.selectbox("Show neighbourhoods flagged for:", tag_options, key="demo_tag_filter")
-        matching = demo_work[demo_work["Tags"].apply(lambda t: selected_tag in t)]
+        # ---- 2) Finder tool + Spending Profile Mix, side by side ----
+        finder_col, mix_col = st.columns(2, gap="large")
 
-        if matching.empty:
-            st.info(f"No neighbourhoods currently flagged for '{selected_tag}'.")
-        else:
-            chips = "".join(
-                f"""<span style="
-                    display:inline-block; background:#F5F3FF; color:#6F5CFF; border:1px solid #E2DBFF;
-                    font-size:13px; font-weight:700; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0;
-                ">{html.escape(n)}</span>"""
-                for n in matching["Neighbourhood"].tolist()
-            )
-            st.markdown(
-                clean_html(f"""
-                <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:16px; padding:16px 20px; box-shadow:0 8px 20px rgba(17,24,39,0.05);">
-                    <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:10px;">{len(matching)} MATCHING AREAS</div>
-                    {chips}
-                </div>
-                """),
-                unsafe_allow_html=True,
-            )
+        with finder_col:
+            st.subheader("Find Areas By Need")
+            st.caption("Pick a need and instantly see which neighbourhoods are flagged for it — useful when deciding where to push a new range.")
+            tag_options = [t[0] for t in DEMOGRAPHIC_TAG_RULES]
+            selected_tag = st.selectbox("Show neighbourhoods flagged for:", tag_options, key="demo_tag_filter")
+            matching = demo_work[demo_work["Tags"].apply(lambda t: selected_tag in t)]
 
-        st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-
-        # ---- 3) Map + spending distribution ----
-        map_left, map_right = st.columns([1.4, 1], gap="large")
-
-        with map_left:
-            st.subheader("Spending Profile Map")
-            coords = (
-                df.dropna(subset=["Latitude_num", "Longitude_num"])
-                .groupby("Neighbourhood", as_index=False)[["Latitude_num", "Longitude_num"]]
-                .mean()
-            )
-            demo_map = demo_work.merge(coords, on="Neighbourhood", how="inner")
-
-            if demo_map.empty:
-                st.info("No matching coordinates found for these neighbourhoods yet.")
+            if matching.empty:
+                st.info(f"No neighbourhoods currently flagged for '{selected_tag}'.")
             else:
-                fig_demo_map = px.scatter_mapbox(
-                    demo_map,
-                    lat="Latitude_num",
-                    lon="Longitude_num",
-                    color="Spending Bucket",
-                    color_discrete_map=SPENDING_BUCKET_COLORS,
-                    hover_name="Neighbourhood",
-                    hover_data={
-                        "Dominant Segments": True,
-                        "Notable Communities": True,
-                        "Latitude_num": False,
-                        "Longitude_num": False,
-                        "Spending Bucket": True,
-                    },
-                    zoom=9.5,
-                    center={"lat": 51.5074, "lon": -0.1278},
-                    height=420,
+                chips = "".join(
+                    f"""<span style="
+                        display:inline-block; background:#F5F3FF; color:#6F5CFF; border:1px solid #E2DBFF;
+                        font-size:13px; font-weight:700; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0;
+                    ">{html.escape(n)}</span>"""
+                    for n in matching["Neighbourhood"].tolist()
                 )
-                fig_demo_map.update_traces(marker=dict(size=16))
-                fig_demo_map.update_layout(
-                    mapbox_style="carto-positron",
-                    margin=dict(r=0, t=0, l=0, b=0),
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+                st.markdown(
+                    clean_html(f"""
+                    <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:16px; padding:16px 20px; box-shadow:0 8px 20px rgba(17,24,39,0.05);">
+                        <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:10px;">{len(matching)} MATCHING AREAS</div>
+                        {chips}
+                    </div>
+                    """),
+                    unsafe_allow_html=True,
                 )
-                st.plotly_chart(fig_demo_map, use_container_width=True, config={"scrollZoom": True})
-                unmatched = len(demo_work) - len(demo_map)
-                if unmatched > 0:
-                    st.caption(f"{unmatched} neighbourhood(s) have no producer coordinates yet, so aren't shown on the map.")
 
-        with map_right:
+        with mix_col:
             st.subheader("Spending Profile Mix")
             bucket_counts = demo_work["Spending Bucket"].value_counts().reset_index()
             bucket_counts.columns = ["Spending Bucket", "Count"]
@@ -1801,6 +1758,49 @@ with tab_demo:
                 legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
             )
             st.plotly_chart(fig_bucket, use_container_width=True)
+
+        st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+        # ---- 3) Spending Profile Map, full width ----
+        st.subheader("Spending Profile Map")
+        coords = (
+            df.dropna(subset=["Latitude_num", "Longitude_num"])
+            .groupby("Neighbourhood", as_index=False)[["Latitude_num", "Longitude_num"]]
+            .mean()
+        )
+        demo_map = demo_work.merge(coords, on="Neighbourhood", how="inner")
+
+        if demo_map.empty:
+            st.info("No matching coordinates found for these neighbourhoods yet.")
+        else:
+            fig_demo_map = px.scatter_mapbox(
+                demo_map,
+                lat="Latitude_num",
+                lon="Longitude_num",
+                color="Spending Bucket",
+                color_discrete_map=SPENDING_BUCKET_COLORS,
+                hover_name="Neighbourhood",
+                hover_data={
+                    "Dominant Segments": True,
+                    "Notable Communities": True,
+                    "Latitude_num": False,
+                    "Longitude_num": False,
+                    "Spending Bucket": True,
+                },
+                zoom=9.5,
+                center={"lat": 51.5074, "lon": -0.1278},
+                height=MAP_HEIGHT,
+            )
+            fig_demo_map.update_traces(marker=dict(size=16))
+            fig_demo_map.update_layout(
+                mapbox_style="carto-positron",
+                margin=dict(r=0, t=0, l=0, b=0),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.12, xanchor="center", x=0.5),
+            )
+            st.plotly_chart(fig_demo_map, use_container_width=True, config={"scrollZoom": True})
+            unmatched = len(demo_work) - len(demo_map)
+            if unmatched > 0:
+                st.caption(f"{unmatched} neighbourhood(s) have no producer coordinates yet, so aren't shown on the map.")
 
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
