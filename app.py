@@ -284,7 +284,8 @@ def top_metric_card(label, value, subtitle, icon=None, icon_bg="#EEF0FF", icon_c
         display: flex;
         align-items: center;
         gap: 14px;
-        min-height: 96px;
+        height: 116px;
+        overflow: hidden;
     ">
         {icon_html}
         <div style="min-width: 0;">
@@ -1776,7 +1777,7 @@ with tab_demo:
                     margin=dict(r=0, t=0, l=0, b=0),
                     legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
                 )
-                st.plotly_chart(fig_demo_map, use_container_width=True)
+                st.plotly_chart(fig_demo_map, use_container_width=True, config={"scrollZoom": True})
                 unmatched = len(demo_work) - len(demo_map)
                 if unmatched > 0:
                     st.caption(f"{unmatched} neighbourhood(s) have no producer coordinates yet, so aren't shown on the map.")
