@@ -700,7 +700,7 @@ def render_catalogue_header_and_steps(trends_df: pd.DataFrame) -> str:
 
 
 def render_catalogue_footer() -> str:
-    def _assistant_icon_html(name: str, fallback_bg: str, fallback_letter: str, zoom: float = 1.0) -> str:
+    def _assistant_icon_html(name: str, fallback_bg: str, fallback_letter: str, zoom: float = 1.0, origin: str = "center") -> str:
         icon_uri = None
         path = ASSISTANT_ICON_FILES.get(name)
         if path:
@@ -714,7 +714,7 @@ def render_catalogue_footer() -> str:
                 ">
                     <img src="{icon_uri}" alt="{html.escape(name)}" style="
                         width:100%; height:100%; object-fit:cover; object-position:center;
-                        transform:scale({zoom}); transform-origin:center;
+                        transform:scale({zoom}); transform-origin:{origin};
                     ">
                 </div>
             """
@@ -727,7 +727,7 @@ def render_catalogue_footer() -> str:
         """
 
     claude_icon_html = _assistant_icon_html("Claude", "#D97757", "C", zoom=1.0)
-    gpt_icon_html = _assistant_icon_html("ChatGPT", "#10A37F", "G", zoom=1.3)
+    gpt_icon_html = _assistant_icon_html("ChatGPT", "#10A37F", "G", zoom=2.3, origin="50% 43%")
 
     return f"""
     <div>
@@ -759,6 +759,197 @@ def render_catalogue_footer() -> str:
                     <div style="font-size:12px; color:#8a8f9c; margin-top:2px;">Paste the prompt and upload your catalogue</div>
                 </div>
             </a>
+        </div>
+    </div>
+    """
+
+
+def render_neighbourhood_demographic_card(row) -> str:
+    recommendations = str(row.get("Product Recommendations", "")).strip()
+    chips_html = ""
+    if recommendations and recommendations != "N/A":
+        chips = [c.strip() for c in recommendations.split(";") if c.strip()]
+        chips_html = "".join(
+            f"""<span style="
+                display:inline-block; background:#EDEBFF; color:#6F5CFF;
+                font-size:12px; font-weight:600; padding:5px 12px;
+                border-radius:999px; margin:0 6px 6px 0;
+            ">{html.escape(c)}</span>"""
+            for c in chips
+        )
+
+    return f"""
+    <div style="
+        background:#ffffff; border:1px solid #ECEEF3; border-radius:16px;
+        box-shadow:0 8px 20px rgba(17,24,39,0.05); padding:18px 22px; margin-bottom:8px;
+    ">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+            <span style="color:#6F5CFF;">{ICON_MAP_PIN}</span>
+            <div style="font-size:18px; font-weight:800; color:#2f3240;">
+                {html.escape(display_value(row.get("Neighbourhood")))} — Who lives here
+            </div>
+        </div>
+        <div style="font-size:14px; color:#4b5563; line-height:1.6; margin-bottom:12px;">
+            {html.escape(display_value(row.get("Summary")))}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px;">
+            <div style="flex:1; min-width:180px;">
+                <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:2px;">DOMINANT SEGMENTS</div>
+                <div style="font-size:13px; color:#2f3240;">{html.escape(display_value(row.get("Dominant Segments")))}</div>
+            </div>
+            <div style="flex:1; min-width:180px;">
+                <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:2px;">NOTABLE COMMUNITIES</div>
+                <div style="font-size:13px; color:#2f3240;">{html.escape(display_value(row.get("Notable Communities")))}</div>
+            </div>
+            <div style="flex:1; min-width:180px;">
+                <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:2px;">SPENDING PROFILE</div>
+                <div style="font-size:13px; color:#2f3240;">{html.escape(display_value(row.get("Spending Profile")))}</div>
+            </div>
+        </div>
+        <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:6px;">SUGGESTED RANGE FOCUS</div>
+        <div>{chips_html}</div>
+        <div style="font-size:11px; color:#b3b8c2; margin-top:12px;">
+            AI-researched overview — directional only, not verified statistics. Spot-check before using for sourcing decisions.
+        </div>
+    </div>
+    """
+
+
+DEMOGRAPHIC_TAG_RULES = [
+    ("Halal", ["Dietary Considerations"], ["halal"]),
+    ("Vegan / Plant-based", ["Dietary Considerations"], ["vegan", "plant-based"]),
+    ("Vegetarian", ["Dietary Considerations"], ["vegetarian"]),
+    ("Kosher", ["Dietary Considerations"], ["kosher"]),
+    ("Premium", ["Spending Profile"], ["premium"]),
+    ("Budget-friendly", ["Spending Profile"], ["budget"]),
+    ("Family-focused", ["Dominant Segments", "Age Life Stage Skew"], ["famil"]),
+    ("Student-heavy", ["Student University Proximity"], ["high"]),
+    ("Nightlife-heavy", ["Day Night Pattern"], ["nightlife"]),
+]
+
+
+def get_neighbourhood_tags(row) -> list:
+    tags = []
+    for tag_name, cols, keywords in DEMOGRAPHIC_TAG_RULES:
+        combined = " ".join(str(row.get(c, "")) for c in cols).lower()
+        if any(kw in combined for kw in keywords):
+            tags.append(tag_name)
+    return tags
+
+
+def spending_bucket(spending_text) -> str:
+    text = str(spending_text).lower()
+    if "ultra" in text:
+        return "Ultra-premium"
+    if "premium" in text and "mixed" not in text and "budget" not in text:
+        return "Premium"
+    if "budget" in text and "mid" not in text and "premium" not in text:
+        return "Budget"
+    if "mid" in text and "premium" not in text and "budget" not in text:
+        return "Mid-range"
+    return "Mixed"
+
+
+SPENDING_BUCKET_COLORS = {
+    "Ultra-premium": "#4B3AD5",
+    "Premium": "#6F5CFF",
+    "Mixed": "#A99BFF",
+    "Mid-range": "#C9BFFF",
+    "Budget": "#E6E1FF",
+}
+
+CONFIDENCE_BADGE_STYLE = {
+    "High": "background:#E6F7EC; color:#2E9E4F;",
+    "Medium-High": "background:#E5F0FF; color:#2F6BFF;",
+    "Medium": "background:#FFF7E0; color:#F5A623;",
+    "Low": "background:#FFE9E5; color:#E4572E;",
+}
+
+
+def render_neighbourhood_full_card(row) -> str:
+    recommendations = str(row.get("Product Recommendations", "")).strip()
+    chips_html = ""
+    if recommendations and recommendations != "N/A":
+        chips = [c.strip() for c in recommendations.split(";") if c.strip()]
+        chips_html = "".join(
+            f"""<span style="
+                display:inline-block; background:#EDEBFF; color:#6F5CFF;
+                font-size:12px; font-weight:600; padding:5px 12px;
+                border-radius:999px; margin:0 6px 6px 0;
+            ">{html.escape(c)}</span>"""
+            for c in chips
+        )
+
+    tags = get_neighbourhood_tags(row)
+    tags_html = "".join(
+        f"""<span style="
+            display:inline-block; background:#F5F3FF; color:#6F5CFF;
+            font-size:11px; font-weight:700; padding:4px 10px;
+            border-radius:999px; margin:0 6px 6px 0; border:1px solid #E2DBFF;
+        ">{html.escape(t)}</span>"""
+        for t in tags
+    )
+
+    confidence = display_value(row.get("Confidence"))
+    confidence_style = CONFIDENCE_BADGE_STYLE.get(confidence, "background:#EEF0FF; color:#6F5CFF;")
+
+    detail_fields = [
+        ("AGE / LIFE-STAGE SKEW", row.get("Age Life Stage Skew")),
+        ("STUDENT / UNIVERSITY PROXIMITY", row.get("Student University Proximity")),
+        ("DAY / NIGHT PATTERN", row.get("Day Night Pattern")),
+        ("DIETARY CONSIDERATIONS", row.get("Dietary Considerations")),
+    ]
+    detail_html = "".join(
+        f"""
+        <div style="flex:1; min-width:200px; margin-bottom:12px;">
+            <div style="font-size:11px; color:#9096a3; font-weight:600; margin-bottom:2px;">{label}</div>
+            <div style="font-size:13px; color:#2f3240;">{html.escape(display_value(value))}</div>
+        </div>
+        """
+        for label, value in detail_fields
+    )
+
+    return f"""
+    <div style="
+        background:#ffffff; border:1px solid #ECEEF3; border-radius:18px;
+        box-shadow:0 10px 26px rgba(17,24,39,0.06); padding:22px 26px;
+    ">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="color:#6F5CFF;">{ICON_MAP_PIN}</span>
+                <div style="font-size:22px; font-weight:800; color:#2f3240;">
+                    {html.escape(display_value(row.get("Neighbourhood")))}
+                </div>
+            </div>
+            <span style="
+                display:inline-block; padding:5px 12px; border-radius:999px;
+                font-size:12px; font-weight:700; {confidence_style}
+            ">Confidence: {html.escape(confidence)}</span>
+        </div>
+        <div style="font-size:14px; color:#4b5563; line-height:1.6; margin:10px 0 14px 0;">
+            {html.escape(display_value(row.get("Summary")))}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px;">
+            <div style="flex:1; min-width:200px; margin-bottom:12px;">
+                <div style="font-size:11px; color:#9096a3; font-weight:600; margin-bottom:2px;">DOMINANT SEGMENTS</div>
+                <div style="font-size:13px; color:#2f3240;">{html.escape(display_value(row.get("Dominant Segments")))}</div>
+            </div>
+            <div style="flex:1; min-width:200px; margin-bottom:12px;">
+                <div style="font-size:11px; color:#9096a3; font-weight:600; margin-bottom:2px;">NOTABLE COMMUNITIES</div>
+                <div style="font-size:13px; color:#2f3240;">{html.escape(display_value(row.get("Notable Communities")))}</div>
+            </div>
+            <div style="flex:1; min-width:200px; margin-bottom:12px;">
+                <div style="font-size:11px; color:#9096a3; font-weight:600; margin-bottom:2px;">SPENDING PROFILE</div>
+                <div style="font-size:13px; color:#2f3240;">{html.escape(display_value(row.get("Spending Profile")))}</div>
+            </div>
+            {detail_html}
+        </div>
+        <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:6px;">QUICK TAGS</div>
+        <div style="margin-bottom:12px;">{tags_html if tags_html else '<span style="font-size:12px; color:#b3b8c2;">No strong tags detected</span>'}</div>
+        <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:6px;">SUGGESTED RANGE FOCUS</div>
+        <div>{chips_html}</div>
+        <div style="font-size:11px; color:#b3b8c2; margin-top:14px;">
+            AI-researched overview — directional only, not verified statistics. Spot-check before using for sourcing decisions.
         </div>
     </div>
     """
@@ -842,6 +1033,7 @@ def render_trend_card(rank, trend, strength, description, image_path=None):
 producer_csv_path = Path("london_producers.csv")
 creators_csv_path = Path("local_market_creators.csv")
 trends_csv_path = Path("local_market_trends.csv")
+demographics_csv_path = Path("london_neighbourhood_demographics.csv")
 
 if not producer_csv_path.exists():
     st.error("london_producers.csv was not found in the project folder.")
@@ -860,6 +1052,11 @@ if trends_csv_path.exists():
     trends_df = pd.read_csv(trends_csv_path).fillna("N/A")
 else:
     trends_df = pd.DataFrame()
+
+if demographics_csv_path.exists():
+    demographics_df = pd.read_csv(demographics_csv_path).fillna("N/A")
+else:
+    demographics_df = pd.DataFrame()
 
 if not creators_df.empty and "Name / Handle" in creators_df.columns:
     creators_df["Profile Pic"] = creators_df["Name / Handle"].apply(resolve_creator_pic)
@@ -901,7 +1098,7 @@ filtered_map_df = filtered_df.dropna(subset=["Latitude_num", "Longitude_num"]).c
 # -----------------------
 # MAIN CONTENT
 # -----------------------
-tab_range, tab_trends = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends"])
+tab_range, tab_trends, tab_demo = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights"])
 
 # =========================================================
 # TAB 1: HYPERLOCAL RANGE
@@ -921,6 +1118,15 @@ with tab_range:
         st.markdown(clean_html(top_metric_card("Mapped Rows", len(filtered_map_df), "Have coordinates", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
 
     st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
+
+    if selected_neighbourhood != "All" and not demographics_df.empty:
+        demo_match = demographics_df[demographics_df["Neighbourhood"] == selected_neighbourhood]
+        if not demo_match.empty:
+            st.markdown(
+                clean_html(render_neighbourhood_demographic_card(demo_match.iloc[0])),
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
 
     top_left, top_right = st.columns(2, gap="large")
     with top_left:
@@ -1466,4 +1672,158 @@ with tab_trends:
         st.markdown(
             clean_html(render_catalogue_footer()),
             unsafe_allow_html=True,
+        )
+
+# =========================================================
+# TAB 3: NEIGHBOURHOOD INSIGHTS
+# =========================================================
+with tab_demo:
+    st.title("Neighbourhood Insights")
+    st.caption("Who lives where — turning local demographics into range and stocking decisions.")
+
+    if demographics_df.empty:
+        st.info(
+            "No demographic data found. Add london_neighbourhood_demographics.csv to the "
+            "project folder to unlock this tab."
+        )
+    else:
+        demo_work = demographics_df.copy()
+        demo_work["Spending Bucket"] = demo_work["Spending Profile"].apply(spending_bucket)
+        demo_work["Tags"] = demo_work.apply(get_neighbourhood_tags, axis=1)
+
+        # ---- 1) KPI row ----
+        halal_count = demo_work["Tags"].apply(lambda t: "Halal" in t).sum()
+        vegan_count = demo_work["Tags"].apply(lambda t: "Vegan / Plant-based" in t).sum()
+        premium_count = demo_work["Tags"].apply(lambda t: "Premium" in t).sum()
+
+        demo_kpi1, demo_kpi2, demo_kpi3, demo_kpi4 = st.columns(4)
+        with demo_kpi1:
+            st.markdown(clean_html(top_metric_card("Neighbourhoods Profiled", len(demo_work), "AI-researched overviews", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+        with demo_kpi2:
+            st.markdown(clean_html(top_metric_card("Halal Demand Areas", int(halal_count), "Flagged for halal range", icon=ICON_USERS, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3")), unsafe_allow_html=True)
+        with demo_kpi3:
+            st.markdown(clean_html(top_metric_card("Vegan / Plant-based Areas", int(vegan_count), "Flagged for plant-based range", icon=ICON_GRID, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+        with demo_kpi4:
+            st.markdown(clean_html(top_metric_card("Premium-Tier Areas", int(premium_count), "Flagged for premium range", icon=ICON_TRENDING_UP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
+
+        st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
+
+        # ---- 2) Finder tool: "Which areas need X?" ----
+        st.subheader("Find Areas By Need")
+        st.caption("Pick a need and instantly see which neighbourhoods are flagged for it — useful when deciding where to push a new range.")
+        tag_options = [t[0] for t in DEMOGRAPHIC_TAG_RULES]
+        selected_tag = st.selectbox("Show neighbourhoods flagged for:", tag_options, key="demo_tag_filter")
+        matching = demo_work[demo_work["Tags"].apply(lambda t: selected_tag in t)]
+
+        if matching.empty:
+            st.info(f"No neighbourhoods currently flagged for '{selected_tag}'.")
+        else:
+            chips = "".join(
+                f"""<span style="
+                    display:inline-block; background:#F5F3FF; color:#6F5CFF; border:1px solid #E2DBFF;
+                    font-size:13px; font-weight:700; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0;
+                ">{html.escape(n)}</span>"""
+                for n in matching["Neighbourhood"].tolist()
+            )
+            st.markdown(
+                clean_html(f"""
+                <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:16px; padding:16px 20px; box-shadow:0 8px 20px rgba(17,24,39,0.05);">
+                    <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:10px;">{len(matching)} MATCHING AREAS</div>
+                    {chips}
+                </div>
+                """),
+                unsafe_allow_html=True,
+            )
+
+        st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+        # ---- 3) Map + spending distribution ----
+        map_left, map_right = st.columns([1.4, 1], gap="large")
+
+        with map_left:
+            st.subheader("Spending Profile Map")
+            coords = (
+                df.dropna(subset=["Latitude_num", "Longitude_num"])
+                .groupby("Neighbourhood", as_index=False)[["Latitude_num", "Longitude_num"]]
+                .mean()
+            )
+            demo_map = demo_work.merge(coords, on="Neighbourhood", how="inner")
+
+            if demo_map.empty:
+                st.info("No matching coordinates found for these neighbourhoods yet.")
+            else:
+                fig_demo_map = px.scatter_mapbox(
+                    demo_map,
+                    lat="Latitude_num",
+                    lon="Longitude_num",
+                    color="Spending Bucket",
+                    color_discrete_map=SPENDING_BUCKET_COLORS,
+                    hover_name="Neighbourhood",
+                    hover_data={
+                        "Dominant Segments": True,
+                        "Notable Communities": True,
+                        "Latitude_num": False,
+                        "Longitude_num": False,
+                        "Spending Bucket": True,
+                    },
+                    zoom=9.5,
+                    center={"lat": 51.5074, "lon": -0.1278},
+                    height=420,
+                )
+                fig_demo_map.update_traces(marker=dict(size=16))
+                fig_demo_map.update_layout(
+                    mapbox_style="carto-positron",
+                    margin=dict(r=0, t=0, l=0, b=0),
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+                )
+                st.plotly_chart(fig_demo_map, use_container_width=True)
+                unmatched = len(demo_work) - len(demo_map)
+                if unmatched > 0:
+                    st.caption(f"{unmatched} neighbourhood(s) have no producer coordinates yet, so aren't shown on the map.")
+
+        with map_right:
+            st.subheader("Spending Profile Mix")
+            bucket_counts = demo_work["Spending Bucket"].value_counts().reset_index()
+            bucket_counts.columns = ["Spending Bucket", "Count"]
+            fig_bucket = px.pie(
+                bucket_counts,
+                names="Spending Bucket",
+                values="Count",
+                hole=0.55,
+                color="Spending Bucket",
+                color_discrete_map=SPENDING_BUCKET_COLORS,
+            )
+            fig_bucket.update_traces(textinfo="none", marker=dict(line=dict(color="white", width=2)))
+            fig_bucket.update_layout(
+                height=420,
+                margin=dict(r=0, t=20, l=0, b=0),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+            )
+            st.plotly_chart(fig_bucket, use_container_width=True)
+
+        st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+        # ---- 4) Detail card for a selected neighbourhood ----
+        st.subheader("Neighbourhood Deep Dive")
+        selected_demo_neighbourhood = st.selectbox(
+            "Select a neighbourhood",
+            sorted(demo_work["Neighbourhood"].tolist()),
+            key="demo_detail_select",
+        )
+        detail_row = demo_work[demo_work["Neighbourhood"] == selected_demo_neighbourhood].iloc[0]
+        st.markdown(clean_html(render_neighbourhood_full_card(detail_row)), unsafe_allow_html=True)
+
+        st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+        # ---- 5) Full comparison table ----
+        st.subheader("All Neighbourhoods — Comparison Table")
+        st.caption("Sort or search any column below — useful for cross-checking multiple areas at once before a range decision.")
+        table_cols = [
+            "Neighbourhood", "Dominant Segments", "Notable Communities", "Spending Profile",
+            "Dietary Considerations", "Product Recommendations", "Confidence",
+        ]
+        st.dataframe(
+            demo_work[table_cols],
+            use_container_width=True,
+            height=420,
         )
