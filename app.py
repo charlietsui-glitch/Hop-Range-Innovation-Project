@@ -859,12 +859,14 @@ SPENDING_BUCKET_COLORS = {
     "Budget": "#E6E1FF",
 }
 
-SPENDING_BUCKET_MEANINGS = {
-    "Ultra-premium": "Extremely wealthy area — expect high-end, luxury demand.",
-    "Premium": "Affluent area — residents can and typically will pay more for quality.",
-    "Mid-range": "Average spending power — no strong affluent or budget skew.",
-    "Budget": "Price-sensitive area — value and affordability matter most.",
-    "Mixed": "A genuine blend of levels, not one dominant tier — common in gentrifying areas with both long-time and newer, wealthier residents.",
+# Illustrative only — not measured data. Placeholder brackets until real
+# average order value (AOV) by neighbourhood is available to replace these.
+SPENDING_BUCKET_BRACKETS = {
+    "Ultra-premium": {"weekly": "£150+", "basket": "£45+"},
+    "Premium": {"weekly": "£100–£150", "basket": "£35–£45"},
+    "Mid-range": {"weekly": "£70–£100", "basket": "£25–£35"},
+    "Budget": {"weekly": "£40–£70", "basket": "£15–£25"},
+    "Mixed": {"weekly": "Spans multiple brackets", "basket": "—"},
 }
 
 
@@ -872,20 +874,31 @@ def render_spend_bracket_legend() -> str:
     rows_html = "".join(
         f"""
         <tr style="border-bottom:1px solid #ECEEF3;">
-            <td style="padding:8px 6px; white-space:nowrap;">
+            <td style="padding:8px 6px;">
                 <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:{SPENDING_BUCKET_COLORS[tier]}; margin-right:8px;"></span>
                 <span style="font-size:13px; font-weight:600; color:#2f3240;">{html.escape(tier)}</span>
             </td>
-            <td style="padding:8px 6px; font-size:13px; color:#4b5563;">{html.escape(meaning)}</td>
+            <td style="padding:8px 6px; font-size:13px; color:#4b5563;">{html.escape(bracket["weekly"])}</td>
+            <td style="padding:8px 6px; font-size:13px; color:#4b5563;">{html.escape(bracket["basket"])}</td>
         </tr>
         """
-        for tier, meaning in SPENDING_BUCKET_MEANINGS.items()
+        for tier, bracket in SPENDING_BUCKET_BRACKETS.items()
     )
     return f"""
     <div>
-        <table style="width:100%; border-collapse:collapse;">
+        <table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
+            <thead>
+                <tr style="border-bottom:1px solid #ECEEF3;">
+                    <th style="text-align:left; padding:6px; font-size:11px; color:#9096a3; font-weight:600;">TIER</th>
+                    <th style="text-align:left; padding:6px; font-size:11px; color:#9096a3; font-weight:600;">WEEKLY FOOD SPEND</th>
+                    <th style="text-align:left; padding:6px; font-size:11px; color:#9096a3; font-weight:600;">BASKET VALUE</th>
+                </tr>
+            </thead>
             <tbody>{rows_html}</tbody>
         </table>
+        <div style="font-size:11px; color:#b3b8c2;">
+            Illustrative brackets, not measured — placeholders pending real average order value (AOV) data.
+        </div>
     </div>
     """
 
@@ -1840,7 +1853,6 @@ with tab_demo:
 
         with mix_col:
             st.subheader("Areas by Spending Tier")
-            st.caption("How likely residents are to spend on food and groceries in this area.")
             bucket_counts = demo_work["Spending Bucket"].value_counts().reset_index()
             bucket_counts.columns = ["Spending Bucket", "Count"]
             fig_bucket = px.pie(
