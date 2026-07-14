@@ -1079,10 +1079,6 @@ producer_csv_path = Path("london_producers.csv")
 creators_csv_path = Path("local_market_creators.csv")
 trends_csv_path = Path("local_market_trends.csv")
 demographics_csv_path = Path("london_neighbourhood_demographics.csv")
-rollout_csv_path = Path("rollout_tracker.csv")
-
-ROLLOUT_STAGES = ["Contacted", "Negotiating", "Contract Signed", "Onboarding", "Live"]
-ROLLOUT_COLUMNS = ["Producer", "Category", "Neighbourhood", "Stage", "VM Owner", "Notes", "Date Added", "Source"]
 
 if not producer_csv_path.exists():
     st.error("london_producers.csv was not found in the project folder.")
@@ -1106,15 +1102,6 @@ if demographics_csv_path.exists():
     demographics_df = pd.read_csv(demographics_csv_path).fillna("N/A")
 else:
     demographics_df = pd.DataFrame()
-
-if rollout_csv_path.exists():
-    rollout_df = pd.read_csv(rollout_csv_path).fillna("")
-    for col in ROLLOUT_COLUMNS:
-        if col not in rollout_df.columns:
-            rollout_df[col] = ""
-    rollout_df = rollout_df[ROLLOUT_COLUMNS]
-else:
-    rollout_df = pd.DataFrame(columns=ROLLOUT_COLUMNS)
 
 if not creators_df.empty and "Name / Handle" in creators_df.columns:
     creators_df["Profile Pic"] = creators_df["Name / Handle"].apply(resolve_creator_pic)
@@ -1156,7 +1143,7 @@ filtered_map_df = filtered_df.dropna(subset=["Latitude_num", "Longitude_num"]).c
 # -----------------------
 # MAIN CONTENT
 # -----------------------
-tab_range, tab_trends, tab_demo, tab_rollout = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights", "🚀 Rollout Tracker"])
+tab_range, tab_trends, tab_demo = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights"])
 
 # =========================================================
 # TAB 1: HYPERLOCAL RANGE
@@ -1886,187 +1873,3 @@ with tab_demo:
             use_container_width=True,
             height=420,
         )
-
-# =========================================================
-# TAB 4: ROLLOUT TRACKER
-# =========================================================
-with tab_rollout:
-    st.title("Rollout Tracker")
-    st.caption("Track candidate producers through the onboarding pipeline for a pilot rollout area.")
-    st.info(
-        "Progress is saved to rollout_tracker.csv in the app folder. On Streamlit Community Cloud's "
-        "free tier this persists while the app stays running, but resets on a reboot or redeploy — "
-        "for guaranteed long-term persistence, this would need a Google Sheet or database backend.",
-        icon="ℹ️",
-    )
-
-    if "rollout_df" not in st.session_state:
-        st.session_state.rollout_df = rollout_df.copy()
-
-    def save_rollout_df():
-        st.session_state.rollout_df.to_csv(rollout_csv_path, index=False)
-
-    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-
-    # ---- 1) Rollout area selector ----
-    area_options = ["All areas"] + sorted(df["Neighbourhood"].dropna().astype(str).unique().tolist())
-    rollout_area = st.selectbox("Rollout area", area_options, key="rollout_area_select")
-
-    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-
-    # ---- 2) Add candidates from the Producer Database ----
-    add_col, custom_col = st.columns(2, gap="large")
-
-    with add_col:
-        st.subheader("Add candidates from the database")
-        if rollout_area == "All areas":
-            st.caption("Select a specific rollout area above to pick candidates from the Producer Database.")
-        else:
-            area_producers = df[df["Neighbourhood"] == rollout_area]
-            already_tracked = set(st.session_state.rollout_df["Producer"].tolist())
-            available_producers = [
-                p for p in area_producers["Producer"].dropna().astype(str).unique().tolist()
-                if p not in already_tracked
-            ]
-            selected_producers = st.multiselect(
-                f"Producers in {rollout_area}",
-                available_producers,
-                key="rollout_add_multiselect",
-            )
-            if st.button("Add selected to tracker", key="rollout_add_button", disabled=not selected_producers):
-                new_rows = []
-                for producer_name in selected_producers:
-                    match = area_producers[area_producers["Producer"] == producer_name].iloc[0]
-                    new_rows.append({
-                        "Producer": producer_name,
-                        "Category": display_value(match.get("Category")),
-                        "Neighbourhood": rollout_area,
-                        "Stage": ROLLOUT_STAGES[0],
-                        "VM Owner": "",
-                        "Notes": "",
-                        "Date Added": date.today().isoformat(),
-                        "Source": "Database",
-                    })
-                st.session_state.rollout_df = pd.concat(
-                    [st.session_state.rollout_df, pd.DataFrame(new_rows)],
-                    ignore_index=True,
-                )
-                save_rollout_df()
-                st.rerun()
-
-    with custom_col:
-        st.subheader("Add a custom vendor")
-        st.caption("For promising local spots not yet in the Producer Database.")
-        with st.form("rollout_custom_vendor_form", clear_on_submit=True):
-            custom_name = st.text_input("Vendor name")
-            custom_category = st.text_input("Category (e.g. Bakeries, Coffee Roasteries)")
-            custom_neighbourhood = st.text_input(
-                "Neighbourhood",
-                value=rollout_area if rollout_area != "All areas" else "",
-            )
-            custom_notes = st.text_area("Notes", height=80)
-            custom_submitted = st.form_submit_button("Add custom vendor")
-
-        if custom_submitted:
-            if not custom_name.strip():
-                st.warning("Enter a vendor name before adding.")
-            else:
-                new_row = pd.DataFrame([{
-                    "Producer": custom_name.strip(),
-                    "Category": custom_category.strip() or "N/A",
-                    "Neighbourhood": custom_neighbourhood.strip() or "N/A",
-                    "Stage": ROLLOUT_STAGES[0],
-                    "VM Owner": "",
-                    "Notes": custom_notes.strip(),
-                    "Date Added": date.today().isoformat(),
-                    "Source": "Custom",
-                }])
-                st.session_state.rollout_df = pd.concat(
-                    [st.session_state.rollout_df, new_row],
-                    ignore_index=True,
-                )
-                save_rollout_df()
-                st.rerun()
-
-    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-
-    # ---- 3) KPI summary ----
-    view_df = st.session_state.rollout_df.copy()
-    if rollout_area != "All areas":
-        view_df = view_df[view_df["Neighbourhood"] == rollout_area]
-
-    total_candidates = len(view_df)
-    live_count = (view_df["Stage"] == "Live").sum() if total_candidates else 0
-    in_progress_count = view_df["Stage"].isin(ROLLOUT_STAGES[1:-1]).sum() if total_candidates else 0
-    not_started_count = (view_df["Stage"] == ROLLOUT_STAGES[0]).sum() if total_candidates else 0
-
-    roll_kpi1, roll_kpi2, roll_kpi3, roll_kpi4 = st.columns(4)
-    with roll_kpi1:
-        st.markdown(clean_html(top_metric_card("Candidates", total_candidates, "In this view", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
-    with roll_kpi2:
-        st.markdown(clean_html(top_metric_card("Live", int(live_count), "Fully onboarded", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
-    with roll_kpi3:
-        st.markdown(clean_html(top_metric_card("In Progress", int(in_progress_count), "Between contact and live", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
-    with roll_kpi4:
-        st.markdown(clean_html(top_metric_card("Not Started", int(not_started_count), "Contacted only", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
-
-    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-
-    # ---- 4) Editable tracker table ----
-    st.subheader(f"Tracker — {rollout_area}")
-    st.caption("Hover a row and click the trash icon to remove a vendor from the tracker.")
-
-    if view_df.empty:
-        st.info("No candidates tracked yet for this view. Add some from the database or as a custom vendor above.")
-    else:
-        edited_view = st.data_editor(
-            view_df,
-            use_container_width=True,
-            height=420,
-            key="rollout_data_editor",
-            column_config={
-                "Stage": st.column_config.SelectboxColumn("Stage", options=ROLLOUT_STAGES, required=True),
-                "VM Owner": st.column_config.TextColumn("VM Owner"),
-                "Notes": st.column_config.TextColumn("Notes"),
-                "Date Added": st.column_config.TextColumn("Date Added", disabled=True),
-                "Producer": st.column_config.TextColumn("Producer", disabled=True),
-                "Category": st.column_config.TextColumn("Category", disabled=True),
-                "Neighbourhood": st.column_config.TextColumn("Neighbourhood", disabled=True),
-                "Source": st.column_config.TextColumn("Source", disabled=True),
-            },
-            num_rows="dynamic",
-        )
-
-        # Drop any blank rows added via the editor's "+" row (Producer/Category/
-        # Neighbourhood are locked, so a row added this way can't be filled in
-        # properly — better to discard it than leave an unusable junk row).
-        edited_view = edited_view[edited_view["Producer"].astype(str).str.strip() != ""]
-
-        if not edited_view.equals(view_df):
-            if rollout_area == "All areas":
-                st.session_state.rollout_df = edited_view
-            else:
-                other_rows = st.session_state.rollout_df[st.session_state.rollout_df["Neighbourhood"] != rollout_area]
-                st.session_state.rollout_df = pd.concat([other_rows, edited_view], ignore_index=True)
-            save_rollout_df()
-            st.rerun()
-
-        st.markdown(f"<div style='height:{12}px;'></div>", unsafe_allow_html=True)
-
-        stage_counts = view_df["Stage"].value_counts().reindex(ROLLOUT_STAGES, fill_value=0).reset_index()
-        stage_counts.columns = ["Stage", "Count"]
-        fig_stage = px.bar(
-            stage_counts,
-            x="Stage",
-            y="Count",
-            color="Count",
-            color_continuous_scale=PURPLE_SCALE,
-        )
-        fig_stage.update_layout(
-            height=280,
-            margin=dict(r=0, t=10, l=0, b=0),
-            coloraxis_showscale=False,
-            xaxis_title="",
-            yaxis_title="Candidates",
-        )
-        st.plotly_chart(fig_stage, use_container_width=True)
