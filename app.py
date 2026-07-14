@@ -859,6 +859,50 @@ SPENDING_BUCKET_COLORS = {
     "Budget": "#E6E1FF",
 }
 
+# Illustrative only — not measured data. Placeholder brackets until real
+# average order value (AOV) by neighbourhood is available to replace these.
+SPENDING_BUCKET_BRACKETS = {
+    "Ultra-premium": {"weekly": "£150+", "basket": "£45+"},
+    "Premium": {"weekly": "£100–£150", "basket": "£35–£45"},
+    "Mid-range": {"weekly": "£70–£100", "basket": "£25–£35"},
+    "Budget": {"weekly": "£40–£70", "basket": "£15–£25"},
+    "Mixed": {"weekly": "Spans multiple brackets", "basket": "—"},
+}
+
+
+def render_spend_bracket_legend() -> str:
+    rows_html = "".join(
+        f"""
+        <tr style="border-bottom:1px solid #ECEEF3;">
+            <td style="padding:8px 6px;">
+                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:{SPENDING_BUCKET_COLORS[tier]}; margin-right:8px;"></span>
+                <span style="font-size:13px; font-weight:600; color:#2f3240;">{html.escape(tier)}</span>
+            </td>
+            <td style="padding:8px 6px; font-size:13px; color:#4b5563;">{html.escape(bracket["weekly"])}</td>
+            <td style="padding:8px 6px; font-size:13px; color:#4b5563;">{html.escape(bracket["basket"])}</td>
+        </tr>
+        """
+        for tier, bracket in SPENDING_BUCKET_BRACKETS.items()
+    )
+    return f"""
+    <div>
+        <table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
+            <thead>
+                <tr style="border-bottom:1px solid #ECEEF3;">
+                    <th style="text-align:left; padding:6px; font-size:11px; color:#9096a3; font-weight:600;">TIER</th>
+                    <th style="text-align:left; padding:6px; font-size:11px; color:#9096a3; font-weight:600;">WEEKLY FOOD SPEND</th>
+                    <th style="text-align:left; padding:6px; font-size:11px; color:#9096a3; font-weight:600;">BASKET VALUE</th>
+                </tr>
+            </thead>
+            <tbody>{rows_html}</tbody>
+        </table>
+        <div style="font-size:11px; color:#b3b8c2;">
+            Illustrative brackets, not measured — placeholders pending real average order value (AOV) data.
+        </div>
+    </div>
+    """
+
+
 CONFIDENCE_BADGE_STYLE = {
     "High": "background:#E6F7EC; color:#2E9E4F;",
     "Medium-High": "background:#E5F0FF; color:#2F6BFF;",
@@ -1035,6 +1079,10 @@ producer_csv_path = Path("london_producers.csv")
 creators_csv_path = Path("local_market_creators.csv")
 trends_csv_path = Path("local_market_trends.csv")
 demographics_csv_path = Path("london_neighbourhood_demographics.csv")
+rollout_csv_path = Path("rollout_tracker.csv")
+
+ROLLOUT_STAGES = ["Contacted", "Negotiating", "Contract Signed", "Onboarding", "Live"]
+ROLLOUT_COLUMNS = ["Producer", "Category", "Neighbourhood", "Stage", "VM Owner", "Notes", "Date Added", "Source"]
 
 if not producer_csv_path.exists():
     st.error("london_producers.csv was not found in the project folder.")
@@ -1058,6 +1106,15 @@ if demographics_csv_path.exists():
     demographics_df = pd.read_csv(demographics_csv_path).fillna("N/A")
 else:
     demographics_df = pd.DataFrame()
+
+if rollout_csv_path.exists():
+    rollout_df = pd.read_csv(rollout_csv_path).fillna("")
+    for col in ROLLOUT_COLUMNS:
+        if col not in rollout_df.columns:
+            rollout_df[col] = ""
+    rollout_df = rollout_df[ROLLOUT_COLUMNS]
+else:
+    rollout_df = pd.DataFrame(columns=ROLLOUT_COLUMNS)
 
 if not creators_df.empty and "Name / Handle" in creators_df.columns:
     creators_df["Profile Pic"] = creators_df["Name / Handle"].apply(resolve_creator_pic)
@@ -1099,7 +1156,7 @@ filtered_map_df = filtered_df.dropna(subset=["Latitude_num", "Longitude_num"]).c
 # -----------------------
 # MAIN CONTENT
 # -----------------------
-tab_range, tab_trends, tab_demo = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights"])
+tab_range, tab_trends, tab_demo, tab_rollout = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights", "🚀 Rollout Tracker"])
 
 # =========================================================
 # TAB 1: HYPERLOCAL RANGE
@@ -1709,55 +1766,15 @@ with tab_demo:
 
         st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
 
-        # ---- 2) Finder tool + Spending Profile Mix, side by side ----
-        finder_col, mix_col = st.columns(2, gap="large")
-
-        with finder_col:
-            st.subheader("Find Areas By Need")
-            st.caption("Pick a need and instantly see which neighbourhoods are flagged for it — useful when deciding where to push a new range.")
-            tag_options = [t[0] for t in DEMOGRAPHIC_TAG_RULES]
-            selected_tag = st.selectbox("Show neighbourhoods flagged for:", tag_options, key="demo_tag_filter")
-            matching = demo_work[demo_work["Tags"].apply(lambda t: selected_tag in t)]
-
-            if matching.empty:
-                st.info(f"No neighbourhoods currently flagged for '{selected_tag}'.")
-            else:
-                chips = "".join(
-                    f"""<span style="
-                        display:inline-block; background:#F5F3FF; color:#6F5CFF; border:1px solid #E2DBFF;
-                        font-size:13px; font-weight:700; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0;
-                    ">{html.escape(n)}</span>"""
-                    for n in matching["Neighbourhood"].tolist()
-                )
-                st.markdown(
-                    clean_html(f"""
-                    <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:16px; padding:16px 20px; box-shadow:0 8px 20px rgba(17,24,39,0.05);">
-                        <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:10px;">{len(matching)} MATCHING AREAS</div>
-                        {chips}
-                    </div>
-                    """),
-                    unsafe_allow_html=True,
-                )
-
-        with mix_col:
-            st.subheader("Spending Profile Mix")
-            bucket_counts = demo_work["Spending Bucket"].value_counts().reset_index()
-            bucket_counts.columns = ["Spending Bucket", "Count"]
-            fig_bucket = px.pie(
-                bucket_counts,
-                names="Spending Bucket",
-                values="Count",
-                hole=0.55,
-                color="Spending Bucket",
-                color_discrete_map=SPENDING_BUCKET_COLORS,
-            )
-            fig_bucket.update_traces(textinfo="none", marker=dict(line=dict(color="white", width=2)))
-            fig_bucket.update_layout(
-                height=420,
-                margin=dict(r=0, t=20, l=0, b=0),
-                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
-            )
-            st.plotly_chart(fig_bucket, use_container_width=True)
+        # ---- 2) Detail card for a selected neighbourhood ----
+        st.subheader("Neighbourhood Deep Dive")
+        selected_demo_neighbourhood = st.selectbox(
+            "Select a neighbourhood",
+            sorted(demo_work["Neighbourhood"].tolist()),
+            key="demo_detail_select",
+        )
+        detail_row = demo_work[demo_work["Neighbourhood"] == selected_demo_neighbourhood].iloc[0]
+        st.markdown(clean_html(render_neighbourhood_full_card(detail_row)), unsafe_allow_html=True)
 
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
@@ -1804,15 +1821,57 @@ with tab_demo:
 
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
-        # ---- 4) Detail card for a selected neighbourhood ----
-        st.subheader("Neighbourhood Deep Dive")
-        selected_demo_neighbourhood = st.selectbox(
-            "Select a neighbourhood",
-            sorted(demo_work["Neighbourhood"].tolist()),
-            key="demo_detail_select",
-        )
-        detail_row = demo_work[demo_work["Neighbourhood"] == selected_demo_neighbourhood].iloc[0]
-        st.markdown(clean_html(render_neighbourhood_full_card(detail_row)), unsafe_allow_html=True)
+        # ---- 4) Finder tool + Areas by Spending Tier, side by side ----
+        finder_col, mix_col = st.columns(2, gap="large")
+
+        with finder_col:
+            st.subheader("Find Areas By Need")
+            st.caption("Pick a need and instantly see which neighbourhoods are flagged for it — useful when deciding where to push a new range.")
+            tag_options = [t[0] for t in DEMOGRAPHIC_TAG_RULES]
+            selected_tag = st.selectbox("Show neighbourhoods flagged for:", tag_options, key="demo_tag_filter")
+            matching = demo_work[demo_work["Tags"].apply(lambda t: selected_tag in t)]
+
+            if matching.empty:
+                st.info(f"No neighbourhoods currently flagged for '{selected_tag}'.")
+            else:
+                chips = "".join(
+                    f"""<span style="
+                        display:inline-block; background:#F5F3FF; color:#6F5CFF; border:1px solid #E2DBFF;
+                        font-size:13px; font-weight:700; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0;
+                    ">{html.escape(n)}</span>"""
+                    for n in matching["Neighbourhood"].tolist()
+                )
+                st.markdown(
+                    clean_html(f"""
+                    <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:16px; padding:16px 20px; box-shadow:0 8px 20px rgba(17,24,39,0.05);">
+                        <div style="font-size:12px; color:#9096a3; font-weight:600; margin-bottom:10px;">{len(matching)} MATCHING AREAS</div>
+                        {chips}
+                    </div>
+                    """),
+                    unsafe_allow_html=True,
+                )
+
+        with mix_col:
+            st.subheader("Areas by Spending Tier")
+            st.caption("'Spend' here is a proxy for spending capacity and price sensitivity, not measured income or actual order data.")
+            bucket_counts = demo_work["Spending Bucket"].value_counts().reset_index()
+            bucket_counts.columns = ["Spending Bucket", "Count"]
+            fig_bucket = px.pie(
+                bucket_counts,
+                names="Spending Bucket",
+                values="Count",
+                hole=0.55,
+                color="Spending Bucket",
+                color_discrete_map=SPENDING_BUCKET_COLORS,
+            )
+            fig_bucket.update_traces(textinfo="none", marker=dict(line=dict(color="white", width=2)))
+            fig_bucket.update_layout(
+                height=320,
+                margin=dict(r=0, t=20, l=0, b=0),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_bucket, use_container_width=True)
+            st.markdown(clean_html(render_spend_bracket_legend()), unsafe_allow_html=True)
 
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
@@ -1828,3 +1887,181 @@ with tab_demo:
             use_container_width=True,
             height=420,
         )
+
+# =========================================================
+# TAB 4: ROLLOUT TRACKER
+# =========================================================
+with tab_rollout:
+    st.title("Rollout Tracker")
+    st.caption("Track candidate producers through the onboarding pipeline for a pilot rollout area.")
+    st.info(
+        "Progress is saved to rollout_tracker.csv in the app folder. On Streamlit Community Cloud's "
+        "free tier this persists while the app stays running, but resets on a reboot or redeploy — "
+        "for guaranteed long-term persistence, this would need a Google Sheet or database backend.",
+        icon="ℹ️",
+    )
+
+    if "rollout_df" not in st.session_state:
+        st.session_state.rollout_df = rollout_df.copy()
+
+    def save_rollout_df():
+        st.session_state.rollout_df.to_csv(rollout_csv_path, index=False)
+
+    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+    # ---- 1) Rollout area selector ----
+    area_options = ["All areas"] + sorted(df["Neighbourhood"].dropna().astype(str).unique().tolist())
+    rollout_area = st.selectbox("Rollout area", area_options, key="rollout_area_select")
+
+    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+    # ---- 2) Add candidates from the Producer Database ----
+    add_col, custom_col = st.columns(2, gap="large")
+
+    with add_col:
+        st.subheader("Add candidates from the database")
+        if rollout_area == "All areas":
+            st.caption("Select a specific rollout area above to pick candidates from the Producer Database.")
+        else:
+            area_producers = df[df["Neighbourhood"] == rollout_area]
+            already_tracked = set(st.session_state.rollout_df["Producer"].tolist())
+            available_producers = [
+                p for p in area_producers["Producer"].dropna().astype(str).unique().tolist()
+                if p not in already_tracked
+            ]
+            selected_producers = st.multiselect(
+                f"Producers in {rollout_area}",
+                available_producers,
+                key="rollout_add_multiselect",
+            )
+            if st.button("Add selected to tracker", key="rollout_add_button", disabled=not selected_producers):
+                new_rows = []
+                for producer_name in selected_producers:
+                    match = area_producers[area_producers["Producer"] == producer_name].iloc[0]
+                    new_rows.append({
+                        "Producer": producer_name,
+                        "Category": display_value(match.get("Category")),
+                        "Neighbourhood": rollout_area,
+                        "Stage": ROLLOUT_STAGES[0],
+                        "VM Owner": "",
+                        "Notes": "",
+                        "Date Added": date.today().isoformat(),
+                        "Source": "Database",
+                    })
+                st.session_state.rollout_df = pd.concat(
+                    [st.session_state.rollout_df, pd.DataFrame(new_rows)],
+                    ignore_index=True,
+                )
+                save_rollout_df()
+                st.rerun()
+
+    with custom_col:
+        st.subheader("Add a custom vendor")
+        st.caption("For promising local spots not yet in the Producer Database.")
+        with st.form("rollout_custom_vendor_form", clear_on_submit=True):
+            custom_name = st.text_input("Vendor name")
+            custom_category = st.text_input("Category (e.g. Bakeries, Coffee Roasteries)")
+            custom_neighbourhood = st.text_input(
+                "Neighbourhood",
+                value=rollout_area if rollout_area != "All areas" else "",
+            )
+            custom_notes = st.text_area("Notes", height=80)
+            custom_submitted = st.form_submit_button("Add custom vendor")
+
+        if custom_submitted:
+            if not custom_name.strip():
+                st.warning("Enter a vendor name before adding.")
+            else:
+                new_row = pd.DataFrame([{
+                    "Producer": custom_name.strip(),
+                    "Category": custom_category.strip() or "N/A",
+                    "Neighbourhood": custom_neighbourhood.strip() or "N/A",
+                    "Stage": ROLLOUT_STAGES[0],
+                    "VM Owner": "",
+                    "Notes": custom_notes.strip(),
+                    "Date Added": date.today().isoformat(),
+                    "Source": "Custom",
+                }])
+                st.session_state.rollout_df = pd.concat(
+                    [st.session_state.rollout_df, new_row],
+                    ignore_index=True,
+                )
+                save_rollout_df()
+                st.rerun()
+
+    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+    # ---- 3) KPI summary ----
+    view_df = st.session_state.rollout_df.copy()
+    if rollout_area != "All areas":
+        view_df = view_df[view_df["Neighbourhood"] == rollout_area]
+
+    total_candidates = len(view_df)
+    live_count = (view_df["Stage"] == "Live").sum() if total_candidates else 0
+    in_progress_count = view_df["Stage"].isin(ROLLOUT_STAGES[1:-1]).sum() if total_candidates else 0
+    not_started_count = (view_df["Stage"] == ROLLOUT_STAGES[0]).sum() if total_candidates else 0
+
+    roll_kpi1, roll_kpi2, roll_kpi3, roll_kpi4 = st.columns(4)
+    with roll_kpi1:
+        st.markdown(clean_html(top_metric_card("Candidates", total_candidates, "In this view", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+    with roll_kpi2:
+        st.markdown(clean_html(top_metric_card("Live", int(live_count), "Fully onboarded", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
+    with roll_kpi3:
+        st.markdown(clean_html(top_metric_card("In Progress", int(in_progress_count), "Between contact and live", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
+    with roll_kpi4:
+        st.markdown(clean_html(top_metric_card("Not Started", int(not_started_count), "Contacted only", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+
+    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+    # ---- 4) Editable tracker table ----
+    st.subheader(f"Tracker — {rollout_area}")
+
+    if view_df.empty:
+        st.info("No candidates tracked yet for this view. Add some from the database or as a custom vendor above.")
+    else:
+        edited_view = st.data_editor(
+            view_df,
+            use_container_width=True,
+            height=420,
+            key="rollout_data_editor",
+            column_config={
+                "Stage": st.column_config.SelectboxColumn("Stage", options=ROLLOUT_STAGES, required=True),
+                "VM Owner": st.column_config.TextColumn("VM Owner"),
+                "Notes": st.column_config.TextColumn("Notes"),
+                "Date Added": st.column_config.TextColumn("Date Added", disabled=True),
+                "Producer": st.column_config.TextColumn("Producer", disabled=True),
+                "Category": st.column_config.TextColumn("Category", disabled=True),
+                "Neighbourhood": st.column_config.TextColumn("Neighbourhood", disabled=True),
+                "Source": st.column_config.TextColumn("Source", disabled=True),
+            },
+            num_rows="fixed",
+        )
+
+        if not edited_view.equals(view_df):
+            if rollout_area == "All areas":
+                st.session_state.rollout_df = edited_view
+            else:
+                other_rows = st.session_state.rollout_df[st.session_state.rollout_df["Neighbourhood"] != rollout_area]
+                st.session_state.rollout_df = pd.concat([other_rows, edited_view], ignore_index=True)
+            save_rollout_df()
+            st.rerun()
+
+        st.markdown(f"<div style='height:{12}px;'></div>", unsafe_allow_html=True)
+
+        stage_counts = view_df["Stage"].value_counts().reindex(ROLLOUT_STAGES, fill_value=0).reset_index()
+        stage_counts.columns = ["Stage", "Count"]
+        fig_stage = px.bar(
+            stage_counts,
+            x="Stage",
+            y="Count",
+            color="Count",
+            color_continuous_scale=PURPLE_SCALE,
+        )
+        fig_stage.update_layout(
+            height=280,
+            margin=dict(r=0, t=10, l=0, b=0),
+            coloraxis_showscale=False,
+            xaxis_title="",
+            yaxis_title="Candidates",
+        )
+        st.plotly_chart(fig_stage, use_container_width=True)
