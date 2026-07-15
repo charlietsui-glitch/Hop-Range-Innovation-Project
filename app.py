@@ -9,6 +9,12 @@ import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 
+try:
+    from streamlit_gsheets import GSheetsConnection
+    GSHEETS_AVAILABLE = True
+except ImportError:
+    GSHEETS_AVAILABLE = False
+
 # -----------------------
 # PAGE CONFIG
 # -----------------------
@@ -1143,7 +1149,7 @@ filtered_map_df = filtered_df.dropna(subset=["Latitude_num", "Longitude_num"]).c
 # -----------------------
 # MAIN CONTENT
 # -----------------------
-tab_range, tab_trends, tab_demo = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights"])
+tab_range, tab_trends, tab_demo, tab_rollout = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights", "🚀 Rollout Tracker"])
 
 # =========================================================
 # TAB 1: HYPERLOCAL RANGE
@@ -1873,3 +1879,108 @@ with tab_demo:
             use_container_width=True,
             height=420,
         )
+
+# =========================================================
+# TAB 4: ROLLOUT TRACKER (review-only, live from Google Sheets)
+# =========================================================
+with tab_rollout:
+    st.title("Rollout Tracker")
+    st.caption("Live review of onboarding progress — VMs update stages directly in the Google Sheet; this view refreshes from it.")
+
+    ROLLOUT_STAGES = ["Contacted", "Negotiating", "Contract Signed", "Onboarding", "Live"]
+
+    if not GSHEETS_AVAILABLE:
+        st.warning(
+            "The st-gsheets-connection package isn't installed yet. Add 'st-gsheets-connection' "
+            "to requirements.txt and configure your Sheet credentials in Secrets to enable this tab."
+        )
+    elif "connections" not in st.secrets or "gsheets" not in st.secrets.get("connections", {}):
+        st.warning(
+            "No Google Sheets connection is configured yet. Add your service account credentials "
+            "under [connections.gsheets] in Secrets (locally: .streamlit/secrets.toml; on Community "
+            "Cloud: App settings → Secrets)."
+        )
+    else:
+        refresh_col, _ = st.columns([1, 5])
+        with refresh_col:
+            if st.button("🔄 Refresh from Sheet", key="rollout_refresh"):
+                st.cache_data.clear()
+                st.rerun()
+
+        try:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            rollout_df = conn.read(ttl="2m").dropna(how="all")
+        except Exception as exc:
+            st.error(f"Couldn't read the Google Sheet: {exc}")
+            rollout_df = pd.DataFrame()
+
+        if rollout_df.empty:
+            st.info("The connected Sheet has no rows yet — ask your team to start adding candidates there.")
+        else:
+            rollout_df = rollout_df.fillna("")
+
+            st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Area filter ----
+            area_options = ["All areas"]
+            if "Neighbourhood" in rollout_df.columns:
+                area_options += sorted(rollout_df["Neighbourhood"].dropna().astype(str).unique().tolist())
+            rollout_area = st.selectbox("Filter by area", area_options, key="rollout_area_filter")
+
+            view_df = rollout_df.copy()
+            if rollout_area != "All areas" and "Neighbourhood" in view_df.columns:
+                view_df = view_df[view_df["Neighbourhood"] == rollout_area]
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- KPI row ----
+            total_candidates = len(view_df)
+            stage_col = view_df["Stage"] if "Stage" in view_df.columns else pd.Series(dtype=str)
+            live_count = (stage_col == "Live").sum()
+            in_progress_count = stage_col.isin(ROLLOUT_STAGES[1:-1]).sum()
+            not_started_count = (stage_col == ROLLOUT_STAGES[0]).sum()
+
+            roll_kpi1, roll_kpi2, roll_kpi3, roll_kpi4 = st.columns(4)
+            with roll_kpi1:
+                st.markdown(clean_html(top_metric_card("Candidates", total_candidates, "In this view", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+            with roll_kpi2:
+                st.markdown(clean_html(top_metric_card("Live", int(live_count), "Fully onboarded", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
+            with roll_kpi3:
+                st.markdown(clean_html(top_metric_card("In Progress", int(in_progress_count), "Between contact and live", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
+            with roll_kpi4:
+                st.markdown(clean_html(top_metric_card("Not Started", int(not_started_count), "Contacted only", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Stage distribution + table ----
+            chart_col, table_col = st.columns([1, 1.6], gap="large")
+            with chart_col:
+                st.subheader("By Stage")
+                if "Stage" in view_df.columns and not view_df.empty:
+                    stage_counts = view_df["Stage"].value_counts().reindex(ROLLOUT_STAGES, fill_value=0).reset_index()
+                    stage_counts.columns = ["Stage", "Count"]
+                    fig_stage = px.bar(
+                        stage_counts,
+                        x="Count",
+                        y="Stage",
+                        orientation="h",
+                        color="Count",
+                        color_continuous_scale=PURPLE_SCALE,
+                    )
+                    fig_stage.update_layout(
+                        height=320,
+                        margin=dict(r=0, t=10, l=0, b=0),
+                        coloraxis_showscale=False,
+                        xaxis_title="Candidates",
+                        yaxis_title="",
+                    )
+                    st.plotly_chart(fig_stage, use_container_width=True)
+
+            with table_col:
+                st.subheader(f"Tracker — {rollout_area}")
+                st.dataframe(view_df, use_container_width=True, height=320)
+
+            st.caption(
+                "This view is read-only. To update a stage, add a vendor, or remove one, "
+                "edit the Google Sheet directly — changes appear here after a refresh."
+            )
