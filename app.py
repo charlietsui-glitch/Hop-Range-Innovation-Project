@@ -1991,13 +1991,13 @@ with tab_rollout:
             st.caption("Which items came from Trend Analysis vs Local Range identification vs other sources, and where each stands.")
 
             try:
-                items_df = conn.read(worksheet="Existing Local Range", ttl="2m").dropna(how="all")
+                items_df = conn.read(worksheet="Item Tracking", ttl="2m").dropna(how="all")
             except Exception as exc:
-                st.error(f"Couldn't read the 'Existing Local Range' worksheet: {exc}")
+                st.error(f"Couldn't read the 'Item Tracking' worksheet: {exc}")
                 items_df = pd.DataFrame()
 
             if items_df.empty:
-                st.info("No items logged yet in the 'Existing Local Range' worksheet.")
+                st.info("No items logged yet in the 'Item Tracking' worksheet.")
             else:
                 items_df = items_df.fillna("")
 
