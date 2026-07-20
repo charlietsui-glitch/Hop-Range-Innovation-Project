@@ -1984,3 +1984,104 @@ with tab_rollout:
                 "This view is read-only. To update a stage, add a vendor, or remove one, "
                 "edit the Google Sheet directly — changes appear here after a refresh."
             )
+
+            st.markdown(f"<div style='height:{24}px;'></div>", unsafe_allow_html=True)
+            st.divider()
+            st.subheader("Item Tracking")
+            st.caption("Which items came from Trend Analysis vs Local Range identification vs other sources, and where each stands.")
+
+            try:
+                items_df = conn.read(worksheet="Existing Local Range", ttl="2m").dropna(how="all")
+            except Exception as exc:
+                st.error(f"Couldn't read the 'Existing Local Range' worksheet: {exc}")
+                items_df = pd.DataFrame()
+
+            if items_df.empty:
+                st.info("No items logged yet in the 'Existing Local Range' worksheet.")
+            else:
+                items_df = items_df.fillna("")
+
+                st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
+
+                # ---- Neighbourhood filter ----
+                item_area_options = ["All areas"]
+                if "Neighbourhood" in items_df.columns:
+                    item_area_options += sorted(items_df["Neighbourhood"].dropna().astype(str).unique().tolist())
+                item_area = st.selectbox("Filter by area", item_area_options, key="item_area_filter")
+
+                item_view = items_df.copy()
+                if item_area != "All areas" and "Neighbourhood" in item_view.columns:
+                    item_view = item_view[item_view["Neighbourhood"] == item_area]
+
+                st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+                # ---- KPI row ----
+                total_items = len(item_view)
+                status_col = item_view["Item Status"] if "Item Status" in item_view.columns else pd.Series(dtype=str)
+                live_items = (status_col == "Live").sum()
+                proposed_items = (status_col == "Proposed").sum()
+                source_col = item_view["Source Detail"] if "Source Detail" in item_view.columns else pd.Series(dtype=str)
+                trend_sourced = source_col.astype(str).str.contains("Trend", case=False, na=False).sum()
+
+                item_kpi1, item_kpi2, item_kpi3, item_kpi4 = st.columns(4)
+                with item_kpi1:
+                    st.markdown(clean_html(top_metric_card("Items Tracked", total_items, "In this view", icon=ICON_GRID, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+                with item_kpi2:
+                    st.markdown(clean_html(top_metric_card("Live Items", int(live_items), "Currently listed", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
+                with item_kpi3:
+                    st.markdown(clean_html(top_metric_card("Proposed", int(proposed_items), "Awaiting review", icon=ICON_LIGHTBULB, icon_bg="#FFF7E0", icon_color="#F5A623", card_bg="#FFFBF0")), unsafe_allow_html=True)
+                with item_kpi4:
+                    st.markdown(clean_html(top_metric_card("From Trend Analysis", int(trend_sourced), "Sourced from trend signals", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+
+                st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+                # ---- Source Detail + Item Status breakdowns ----
+                source_chart_col, status_chart_col = st.columns(2, gap="large")
+
+                with source_chart_col:
+                    st.markdown("**By Source**")
+                    if "Source Detail" in item_view.columns and not item_view.empty:
+                        source_counts = item_view["Source Detail"].value_counts().reset_index()
+                        source_counts.columns = ["Source Detail", "Count"]
+                        fig_source = px.pie(
+                            source_counts,
+                            names="Source Detail",
+                            values="Count",
+                            hole=0.55,
+                            color_discrete_sequence=CATEGORY_PIE_COLORS,
+                        )
+                        fig_source.update_traces(textinfo="none", marker=dict(line=dict(color="white", width=2)))
+                        fig_source.update_layout(
+                            height=300,
+                            margin=dict(r=0, t=10, l=0, b=0),
+                            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                        )
+                        st.plotly_chart(fig_source, use_container_width=True)
+
+                with status_chart_col:
+                    st.markdown("**By Status**")
+                    if "Item Status" in item_view.columns and not item_view.empty:
+                        status_counts = item_view["Item Status"].value_counts().reset_index()
+                        status_counts.columns = ["Item Status", "Count"]
+                        fig_item_status = px.bar(
+                            status_counts,
+                            x="Count",
+                            y="Item Status",
+                            orientation="h",
+                            color="Count",
+                            color_continuous_scale=PURPLE_SCALE,
+                        )
+                        fig_item_status.update_layout(
+                            height=300,
+                            margin=dict(r=0, t=10, l=0, b=0),
+                            coloraxis_showscale=False,
+                            xaxis_title="Items",
+                            yaxis_title="",
+                        )
+                        st.plotly_chart(fig_item_status, use_container_width=True)
+
+                st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+                # ---- Full item table ----
+                st.markdown(f"**All Items — {item_area}**")
+                st.dataframe(item_view, use_container_width=True, height=360)
