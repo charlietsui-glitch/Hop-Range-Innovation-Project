@@ -2222,15 +2222,15 @@ with tab_impact:
 
             vol_kpi1, vol_kpi2, vol_kpi3, vol_kpi4 = st.columns(4)
             with vol_kpi1:
-                st.markdown(clean_html(top_metric_card("Local Orders", display_value(orders_row.get("Local")) if orders_row is not None else "-", "This week", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+                st.markdown(clean_html(top_metric_card("Orders with Local Range", display_value(orders_row.get("Local")) if orders_row is not None else "-", "Orders containing ≥1 local item", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
             with vol_kpi2:
-                st.markdown(clean_html(top_metric_card("Local Customers", display_value(customers_row.get("Local")) if customers_row is not None else "-", "This week", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+                st.markdown(clean_html(top_metric_card("Customers Buying Local Range", display_value(customers_row.get("Local")) if customers_row is not None else "-", "Unique customers this week", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
             with vol_kpi3:
                 attach_val = display_value(attach_row.get("Local")) if attach_row is not None else "-"
-                st.markdown(clean_html(top_metric_card("Local Attach Rate", f"{attach_val}%" if attach_val != "-" else "-", "Of all site orders", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
+                st.markdown(clean_html(top_metric_card("% of Site Total Orders with Local Range", f"{attach_val}%" if attach_val != "-" else "-", "Adoption of local range so far", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
             with vol_kpi4:
                 gmv_val = display_value(local_gmv_row.get("Local")) if local_gmv_row is not None else "-"
-                st.markdown(clean_html(top_metric_card("Avg Local Line GMV", f"£{gmv_val}" if gmv_val != "-" else "-", "Per order", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
+                st.markdown(clean_html(top_metric_card("Average Spend on Local Range per Order", f"£{gmv_val}" if gmv_val != "-" else "-", "£ from local items only, not full basket", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
 
             st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
@@ -2239,16 +2239,16 @@ with tab_impact:
 
             with basket_col:
                 st.subheader("Basket Depth")
-                st.caption("Distinct lines and units per order — local-range orders vs orders without local items.")
-                basket_metrics = [
-                    "Avg distinct lines per order (total)",
-                    "Avg units per order (total)",
-                ]
+                st.caption("Unique Items Count = number of different products in the order. Items Sold = total quantity purchased, counting duplicates.")
+                basket_metric_labels = {
+                    "Avg distinct lines per order (total)": "Unique Items Count",
+                    "Avg units per order (total)": "Items Sold",
+                }
                 basket_rows = []
-                for m in basket_metrics:
+                for m, label in basket_metric_labels.items():
                     row = get_metric_row(m)
                     if row is not None:
-                        basket_rows.append({"Metric": m.replace("Avg ", "").replace(" per order (total)", ""), "Local": pd.to_numeric(row.get("Local"), errors="coerce"), "Non-local": pd.to_numeric(row.get("Non-local"), errors="coerce")})
+                        basket_rows.append({"Metric": label, "Local": pd.to_numeric(row.get("Local"), errors="coerce"), "Non-local": pd.to_numeric(row.get("Non-local"), errors="coerce")})
                 if basket_rows:
                     basket_chart_df = pd.DataFrame(basket_rows).melt(id_vars="Metric", var_name="Order Type", value_name="Value")
                     fig_basket = px.bar(
@@ -2270,13 +2270,16 @@ with tab_impact:
 
             with gmv_col:
                 st.subheader("Satisfaction")
-                st.caption("Customer rating and response rate — local-range orders vs orders without local items.")
-                sat_metrics = ["Avg customer rating", "Rating response rate (%)"]
+                st.caption("Customer Rating = the actual star score given. Leaving Response Rate = % of orders where a customer left any rating at all (feedback engagement, separate from the score itself).")
+                sat_metric_labels = {
+                    "Avg customer rating": "Avg Rating (1–5 stars)",
+                    "Rating response rate (%)": "Leaving Response Rate",
+                }
                 sat_rows = []
-                for m in sat_metrics:
+                for m, label in sat_metric_labels.items():
                     row = get_metric_row(m)
                     if row is not None:
-                        sat_rows.append({"Metric": m.replace("Avg ", "").replace(" (%)", ""), "Local": pd.to_numeric(row.get("Local"), errors="coerce"), "Non-local": pd.to_numeric(row.get("Non-local"), errors="coerce")})
+                        sat_rows.append({"Metric": label, "Local": pd.to_numeric(row.get("Local"), errors="coerce"), "Non-local": pd.to_numeric(row.get("Non-local"), errors="coerce")})
                 if sat_rows:
                     sat_chart_df = pd.DataFrame(sat_rows).melt(id_vars="Metric", var_name="Order Type", value_name="Value")
                     fig_sat = px.bar(
@@ -2301,23 +2304,18 @@ with tab_impact:
             # ---- Customer behaviour deltas ----
             st.subheader("Customer Behaviour")
             st.caption("How customers on local-range orders differ from customers on orders without local items — parsed directly from the 'Lift vs non-local' column.")
-            behaviour_metrics = [
-                "% customers with 2+ orders in week",
-                "% customers new to site",
-                "% customers winback / reactivated",
-                "% customers existing site active (28d) - Regular Customers",
-            ]
-            behaviour_cols = st.columns(len(behaviour_metrics))
-            for col, metric_name in zip(behaviour_cols, behaviour_metrics):
+            behaviour_metric_labels = {
+                "% customers with 2+ orders in week": "Repeat Customers (2+ Orders This Week)",
+                "% customers new to site": "New Customers (First Order Ever)",
+                "% customers winback / reactivated": "Winback Customers (Lapsed, Now Returned)",
+                "% customers existing site active (28d) - Regular Customers": "Active Regular Customers (Last 28 Days)",
+            }
+            behaviour_cols = st.columns(len(behaviour_metric_labels))
+            for col, (metric_name, short_label) in zip(behaviour_cols, behaviour_metric_labels.items()):
                 row = get_metric_row(metric_name)
                 with col:
                     if row is not None:
                         lift = parse_lift_text(row.get("Lift vs non-local", ""))
-                        short_label = (
-                            metric_name.replace("% customers ", "")
-                            .replace(" - Regular Customers", "")
-                            .capitalize()
-                        )
                         st.markdown(clean_html(render_delta_pill(short_label, lift)), unsafe_allow_html=True)
 
             st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
