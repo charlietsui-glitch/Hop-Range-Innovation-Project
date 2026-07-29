@@ -1,6 +1,7 @@
 import base64
 import html
 import math
+import re
 from datetime import date
 from pathlib import Path
 import numpy as np
@@ -1149,7 +1150,7 @@ filtered_map_df = filtered_df.dropna(subset=["Latitude_num", "Longitude_num"]).c
 # -----------------------
 # MAIN CONTENT
 # -----------------------
-tab_range, tab_trends, tab_demo, tab_rollout = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights", "🚀 Rollout Tracker"])
+tab_range, tab_trends, tab_demo, tab_rollout, tab_impact = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights", "🚀 Rollout Tracker", "🌟 Local Impact"])
 
 # =========================================================
 # TAB 1: HYPERLOCAL RANGE
@@ -2085,3 +2086,242 @@ with tab_rollout:
                 # ---- Full item table ----
                 st.markdown(f"**All Items — {item_area}**")
                 st.dataframe(item_view, use_container_width=True, height=360)
+
+
+def parse_lift_text(text):
+    """Parse strings like '4.59 higher than non-local (66.6% relative)' or
+    '2.65 pp lower than non-local' into a structured dict. Returns None if
+    the text doesn't match the expected pattern (e.g. blank cell)."""
+    text = str(text).strip()
+    match = re.match(r"([\d.]+)\s*(pp)?\s*(higher|lower)\s*than\s*non-local(?:\s*\(([\d.]+)%\s*relative\))?", text, re.IGNORECASE)
+    if not match:
+        return None
+    value, pp, direction, relative = match.groups()
+    return {
+        "value": value,
+        "unit": "pp" if pp else "",
+        "direction": direction.lower(),
+        "relative": relative,
+    }
+
+
+def render_delta_pill(label, lift_info) -> str:
+    if not lift_info:
+        return ""
+    arrow = "▲" if lift_info["direction"] == "higher" else "▼"
+    color = "#6F5CFF" if lift_info["direction"] == "higher" else "#8A8F9C"
+    bg = "#F5F3FF" if lift_info["direction"] == "higher" else "#F3F4F6"
+    magnitude = f"{lift_info['value']}{lift_info['unit']}"
+    relative_txt = f" ({lift_info['relative']}% relative)" if lift_info["relative"] else ""
+    return f"""
+    <div style="
+        background:{bg}; border-radius:14px; padding:14px 16px; margin-bottom:10px;
+    ">
+        <div style="font-size:12px; color:#6b7280; font-weight:600; margin-bottom:4px;">{html.escape(label)}</div>
+        <div style="font-size:20px; font-weight:800; color:{color};">{arrow} {html.escape(magnitude)}</div>
+        <div style="font-size:11px; color:#9096a3; margin-top:2px;">vs non-local orders{relative_txt}</div>
+    </div>
+    """
+
+
+# =========================================================
+# TAB 5: LOCAL IMPACT (Local vs Non-Local order comparison)
+# =========================================================
+with tab_impact:
+    st.title("Local Impact")
+    st.caption("Do orders that include local-range items behave differently to orders that don't — bigger baskets, more spend, better retention?")
+
+    if not GSHEETS_AVAILABLE:
+        st.warning(
+            "The st-gsheets-connection package isn't installed yet. Add 'st-gsheets-connection' "
+            "to requirements.txt and configure your Sheet credentials in Secrets to enable this tab."
+        )
+    elif "connections" not in st.secrets or "gsheets" not in st.secrets.get("connections", {}):
+        st.warning(
+            "No Google Sheets connection is configured yet. Add your service account credentials "
+            "under [connections.gsheets] in Secrets."
+        )
+    else:
+        try:
+            impact_conn = st.connection("gsheets", type=GSheetsConnection)
+            impact_df = impact_conn.read(worksheet="Item Performance", ttl="2m").dropna(how="all")
+        except Exception as exc:
+            st.error(f"Couldn't read the 'Item Performance' worksheet: {exc}")
+            impact_df = pd.DataFrame()
+
+        if impact_df.empty:
+            st.info("No performance data logged yet in the 'Item Performance' worksheet.")
+        else:
+            impact_df = impact_df.fillna("")
+
+            st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Filters ----
+            filt_col1, filt_col2 = st.columns(2)
+            with filt_col1:
+                site_options = sorted(impact_df["Site"].dropna().astype(str).unique().tolist()) if "Site" in impact_df.columns else []
+                selected_site = st.selectbox("Site", site_options, key="impact_site_select") if site_options else None
+            with filt_col2:
+                week_options = []
+                if "Week start" in impact_df.columns and "Week end" in impact_df.columns:
+                    week_options = sorted(
+                        (impact_df["Week start"].astype(str) + " → " + impact_df["Week end"].astype(str)).unique().tolist(),
+                        reverse=True,
+                    )
+                selected_week = st.selectbox("Week", week_options, key="impact_week_select") if week_options else None
+
+            slice_df = impact_df.copy()
+            if selected_site:
+                slice_df = slice_df[slice_df["Site"] == selected_site]
+            if selected_week:
+                week_start_val, week_end_val = [w.strip() for w in selected_week.split("→")]
+                slice_df = slice_df[
+                    (slice_df["Week start"].astype(str) == week_start_val)
+                    & (slice_df["Week end"].astype(str) == week_end_val)
+                ]
+
+            def get_metric_row(metric_name):
+                match = slice_df[slice_df["Metric"] == metric_name]
+                return match.iloc[0] if not match.empty else None
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Headline halo-effect callout ----
+            gmv_row = get_metric_row("Avg non-local line GMV per order (£)")
+            if gmv_row is not None:
+                gmv_lift = parse_lift_text(gmv_row.get("Lift vs non-local", ""))
+                if gmv_lift:
+                    relative_pct = gmv_lift["relative"] or gmv_lift["value"]
+                    st.markdown(
+                        clean_html(f"""
+                        <div style="
+                            background:linear-gradient(135deg, #6F5CFF 0%, #4B3AD5 100%);
+                            border-radius:20px; padding:28px 32px; margin-bottom:8px;
+                        ">
+                            <div style="font-size:13px; color:#E5E0FF; font-weight:600; letter-spacing:0.5px; margin-bottom:8px;">THE HALO EFFECT</div>
+                            <div style="font-size:26px; font-weight:800; color:white; line-height:1.35;">
+                                Orders with local-range items spend {html.escape(str(relative_pct))}% more
+                                on <em>non-local</em> items too.
+                            </div>
+                            <div style="font-size:13px; color:#D9D0FF; margin-top:10px;">
+                                £{html.escape(str(gmv_row.get('Local', '')))} vs £{html.escape(str(gmv_row.get('Non-local', '')))} average non-local spend per order —
+                                local range isn't just selling itself, it's growing the whole basket.
+                            </div>
+                        </div>
+                        """),
+                        unsafe_allow_html=True,
+                    )
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Volume + local adoption KPIs ----
+            orders_row = get_metric_row("Orders (count)")
+            customers_row = get_metric_row("Customers (count)")
+            attach_row = get_metric_row("Local order attach rate (% of site orders)")
+            local_gmv_row = get_metric_row("Avg local line GMV per order (£)")
+
+            vol_kpi1, vol_kpi2, vol_kpi3, vol_kpi4 = st.columns(4)
+            with vol_kpi1:
+                st.markdown(clean_html(top_metric_card("Local Orders", display_value(orders_row.get("Local")) if orders_row is not None else "-", "This week", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+            with vol_kpi2:
+                st.markdown(clean_html(top_metric_card("Local Customers", display_value(customers_row.get("Local")) if customers_row is not None else "-", "This week", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+            with vol_kpi3:
+                attach_val = display_value(attach_row.get("Local")) if attach_row is not None else "-"
+                st.markdown(clean_html(top_metric_card("Local Attach Rate", f"{attach_val}%" if attach_val != "-" else "-", "Of all site orders", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
+            with vol_kpi4:
+                gmv_val = display_value(local_gmv_row.get("Local")) if local_gmv_row is not None else "-"
+                st.markdown(clean_html(top_metric_card("Avg Local Line GMV", f"£{gmv_val}" if gmv_val != "-" else "-", "Per order", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Basket depth comparison chart ----
+            basket_col, gmv_col = st.columns(2, gap="large")
+
+            with basket_col:
+                st.subheader("Basket Depth")
+                st.caption("Distinct lines and units per order — local-range orders vs orders without local items.")
+                basket_metrics = [
+                    "Avg distinct lines per order (total)",
+                    "Avg units per order (total)",
+                ]
+                basket_rows = []
+                for m in basket_metrics:
+                    row = get_metric_row(m)
+                    if row is not None:
+                        basket_rows.append({"Metric": m.replace("Avg ", "").replace(" per order (total)", ""), "Local": pd.to_numeric(row.get("Local"), errors="coerce"), "Non-local": pd.to_numeric(row.get("Non-local"), errors="coerce")})
+                if basket_rows:
+                    basket_chart_df = pd.DataFrame(basket_rows).melt(id_vars="Metric", var_name="Order Type", value_name="Value")
+                    fig_basket = px.bar(
+                        basket_chart_df,
+                        x="Metric",
+                        y="Value",
+                        color="Order Type",
+                        barmode="group",
+                        color_discrete_map={"Local": "#6F5CFF", "Non-local": "#D9D0FF"},
+                    )
+                    fig_basket.update_layout(
+                        height=320,
+                        margin=dict(r=0, t=10, l=0, b=0),
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                        xaxis_title="",
+                        yaxis_title="",
+                    )
+                    st.plotly_chart(fig_basket, use_container_width=True)
+
+            with gmv_col:
+                st.subheader("Satisfaction")
+                st.caption("Customer rating and response rate — local-range orders vs orders without local items.")
+                sat_metrics = ["Avg customer rating", "Rating response rate (%)"]
+                sat_rows = []
+                for m in sat_metrics:
+                    row = get_metric_row(m)
+                    if row is not None:
+                        sat_rows.append({"Metric": m.replace("Avg ", "").replace(" (%)", ""), "Local": pd.to_numeric(row.get("Local"), errors="coerce"), "Non-local": pd.to_numeric(row.get("Non-local"), errors="coerce")})
+                if sat_rows:
+                    sat_chart_df = pd.DataFrame(sat_rows).melt(id_vars="Metric", var_name="Order Type", value_name="Value")
+                    fig_sat = px.bar(
+                        sat_chart_df,
+                        x="Metric",
+                        y="Value",
+                        color="Order Type",
+                        barmode="group",
+                        color_discrete_map={"Local": "#2E9E4F", "Non-local": "#C9E8D2"},
+                    )
+                    fig_sat.update_layout(
+                        height=320,
+                        margin=dict(r=0, t=10, l=0, b=0),
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                        xaxis_title="",
+                        yaxis_title="",
+                    )
+                    st.plotly_chart(fig_sat, use_container_width=True)
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Customer behaviour deltas ----
+            st.subheader("Customer Behaviour")
+            st.caption("How customers on local-range orders differ from customers on orders without local items — parsed directly from the 'Lift vs non-local' column.")
+            behaviour_metrics = [
+                "% customers with 2+ orders in week",
+                "% customers new to site",
+                "% customers winback / reactivated",
+                "% customers existing site active (28d) - Regular Customers",
+            ]
+            behaviour_cols = st.columns(len(behaviour_metrics))
+            for col, metric_name in zip(behaviour_cols, behaviour_metrics):
+                row = get_metric_row(metric_name)
+                with col:
+                    if row is not None:
+                        lift = parse_lift_text(row.get("Lift vs non-local", ""))
+                        short_label = (
+                            metric_name.replace("% customers ", "")
+                            .replace(" - Regular Customers", "")
+                            .capitalize()
+                        )
+                        st.markdown(clean_html(render_delta_pill(short_label, lift)), unsafe_allow_html=True)
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            # ---- Full raw table ----
+            st.subheader("All Metrics — Raw Data")
+            st.dataframe(slice_df, use_container_width=True, height=420)
