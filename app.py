@@ -2136,6 +2136,20 @@ def fmt_num(value, prefix="", suffix="", decimals=None):
     return f"{prefix}{num:,.{decimals}f}{suffix}"
 
 
+def fmt_signed(value, prefix="", suffix="", decimals=None):
+    """Same as fmt_num but always shows an explicit +/- sign — useful for
+    week-over-week change figures where the sheet can't store a leading '+'
+    (Google Sheets treats it as the start of a formula)."""
+    num = pd.to_numeric(value, errors="coerce")
+    if pd.isna(num):
+        text = str(value).strip()
+        return text if text and text.lower() != "nan" else "-"
+    if decimals is None:
+        decimals = 0 if num == int(num) else 2
+    sign = "+" if num > 0 else ("-" if num < 0 else "")
+    return f"{sign}{prefix}{abs(num):,.{decimals}f}{suffix}"
+
+
 PERFORMANCE_GLOSSARY = {
     "AOV": "Average Order Value — the order subtotal, averaged across orders.",
     "IPO": "Items Per Order — average distinct line items (and/or units) per order.",
@@ -2319,6 +2333,46 @@ with tab_impact:
                         lift = lift_of(row)
                         st.markdown(clean_html(render_delta_pill(label, lift)), unsafe_allow_html=True)
 
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            basket_chart_col1, basket_chart_col2 = st.columns([1, 1.6], gap="large")
+            with basket_chart_col1:
+                if aov_row is not None:
+                    aov_chart_df = pd.DataFrame({
+                        "Order Type": ["Local", "Non-local"],
+                        "AOV (£)": [pd.to_numeric(local_val(aov_row), errors="coerce"), pd.to_numeric(nonlocal_val(aov_row), errors="coerce")],
+                    })
+                    fig_aov = px.bar(
+                        aov_chart_df, x="Order Type", y="AOV (£)", color="Order Type",
+                        color_discrete_map={"Local": "#6F5CFF", "Non-local": "#D9D0FF"}, text="AOV (£)",
+                    )
+                    fig_aov.update_traces(texttemplate="£%{text:.2f}", textposition="outside", showlegend=False)
+                    fig_aov.update_layout(height=280, margin=dict(r=10, t=20, l=0, b=0), xaxis_title="", yaxis_title="AOV (£)")
+                    st.plotly_chart(fig_aov, use_container_width=True)
+
+            with basket_chart_col2:
+                count_metric_labels = {
+                    "Lines per Order": lines_row,
+                    "Units per Order": units_row,
+                    "Non-Local Add-on Lines": get_row("Basket size — does local expand the shop?", "Avg add-on lines (non-local)"),
+                }
+                count_rows = []
+                for label, row in count_metric_labels.items():
+                    if row is not None:
+                        count_rows.append({"Metric": label, "Local": pd.to_numeric(local_val(row), errors="coerce"), "Non-local": pd.to_numeric(nonlocal_val(row), errors="coerce")})
+                if count_rows:
+                    count_chart_df = pd.DataFrame(count_rows).melt(id_vars="Metric", var_name="Order Type", value_name="Value")
+                    fig_counts = px.bar(
+                        count_chart_df, x="Metric", y="Value", color="Order Type", barmode="group",
+                        color_discrete_map={"Local": "#6F5CFF", "Non-local": "#D9D0FF"},
+                    )
+                    fig_counts.update_layout(
+                        height=280, margin=dict(r=0, t=20, l=0, b=0),
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+                        xaxis_title="", yaxis_title="",
+                    )
+                    st.plotly_chart(fig_counts, use_container_width=True)
+
             local_lines_row = get_row("Basket size — does local expand the shop?", "Avg local lines")
             if local_lines_row is not None:
                 st.caption(f"For context (no non-local comparison): average **{fmt_num(local_val(local_lines_row))} local-range lines** per order that contains local range.")
@@ -2340,6 +2394,25 @@ with tab_impact:
                 with col:
                     if row is not None:
                         st.markdown(clean_html(render_delta_pill(label, lift_of(row))), unsafe_allow_html=True)
+
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            gaining_rows = []
+            for label, row in gaining_metrics:
+                if row is not None:
+                    gaining_rows.append({"Segment": label, "Local": pd.to_numeric(local_val(row), errors="coerce"), "Non-local": pd.to_numeric(nonlocal_val(row), errors="coerce")})
+            if gaining_rows:
+                gaining_chart_df = pd.DataFrame(gaining_rows).melt(id_vars="Segment", var_name="Order Type", value_name="% of customers")
+                fig_gaining = px.bar(
+                    gaining_chart_df, x="Segment", y="% of customers", color="Order Type", barmode="group",
+                    color_discrete_map={"Local": "#2E9E4F", "Non-local": "#C9E8D2"},
+                )
+                fig_gaining.update_layout(
+                    height=300, margin=dict(r=0, t=20, l=0, b=0),
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                    xaxis_title="",
+                )
+                st.plotly_chart(fig_gaining, use_container_width=True)
 
             st.markdown(f"<div style='height:{24}px;'></div>", unsafe_allow_html=True)
             st.divider()
@@ -2390,12 +2463,14 @@ with tab_impact:
                 "Local ASP (£)": get_row("Commercial performance — how is the range doing financially?", "Local ASP (£)"),
                 "Local SKUs Sold": get_row("Commercial performance — how is the range doing financially?", "Local SKUs sold"),
                 "Sales WoW Change (£)": get_row("Commercial performance — how is the range doing financially?", "Local sales WoW change (£)"),
+                "Revenue Share WoW (pp)": get_row("Commercial performance — how is the range doing financially?", "Local revenue share WoW (pp)"),
             }
+            WOW_LABELS = {"Sales WoW Change (£)", "Revenue Share WoW (pp)"}
 
             # Flag if the data looks off (e.g. Local = 0 while VM%/ASP sit under Non-local)
             looks_off = any(
                 row is not None and str(local_val(row)).strip() in ("0", "0.0", "")
-                and str(nonlocal_val(row)).strip() not in ("", "n/a")
+                and str(nonlocal_val(row)).strip() not in ("", "n/a", "—", "-")
                 for row in commercial_rows.values()
             )
             if looks_off:
@@ -2410,9 +2485,15 @@ with tab_impact:
             for i, (label, row) in enumerate(commercial_rows.items()):
                 with comm_cols[i % 3]:
                     if row is not None:
-                        local_display = display_value(local_val(row))
-                        nonlocal_display = display_value(nonlocal_val(row))
-                        st.markdown(clean_html(top_metric_card(label, local_display, f"Non-local/site: {nonlocal_display}", icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
+                        if label in WOW_LABELS:
+                            # Sheet can't store a leading '+', so make the direction explicit here instead.
+                            suffix = "" if "£" in label else " pp"
+                            local_display = fmt_signed(local_val(row), prefix="£" if "£" in label else "", suffix=suffix)
+                            subtitle = "vs prior complete week"
+                        else:
+                            local_display = display_value(local_val(row))
+                            subtitle = f"Non-local/site: {display_value(nonlocal_val(row))}"
+                        st.markdown(clean_html(top_metric_card(label, local_display, subtitle, icon=ICON_MAP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
 
             st.markdown(f"<div style='height:{24}px;'></div>", unsafe_allow_html=True)
             st.divider()
