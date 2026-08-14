@@ -2228,6 +2228,21 @@ with tab_impact:
                 match = slice_df[(slice_df["Section"] == section) & (slice_df["Metric"] == metric)]
                 return match.iloc[0] if not match.empty else None
 
+            def get_retention_row(metric):
+                """Retention cohort rows intentionally live under an earlier
+                week than the headline metrics (so all follow-up weeks have
+                already happened) — look these up from the full site data,
+                not the headline week filter, taking the most recent cohort."""
+                site_df = impact_df[impact_df["Site"] == selected_site] if selected_site else impact_df
+                match = site_df[
+                    (site_df["Section"] == "Retention & frequency — do local buyers come back?")
+                    & (site_df["Metric"] == metric)
+                ]
+                if match.empty:
+                    return None
+                match = match.sort_values("Week start", ascending=False)
+                return match.iloc[0]
+
             def local_val(row):
                 return row.get("Local", "") if row is not None else ""
 
@@ -2269,7 +2284,7 @@ with tab_impact:
             ec_row = get_row("Customer gaining — who is buying local?", "% EC — existing active 28d")
             freq_row = get_row("Retention & frequency — do local buyers come back?", "Orders per customer (frequency)")
             repeat_row = get_row("Retention & frequency — do local buyers come back?", "% customers 2+ orders in week")
-            retention_w1_row = get_row("Retention & frequency — do local buyers come back?", "Retention W+1 % (return to site next week)")
+            retention_w1_row = get_retention_row("Retention W1 % (return to site next week)")
 
             aov_lift, lines_lift, units_lift = lift_of(aov_row), lift_of(lines_row), lift_of(units_row)
             basket_bits = []
@@ -2419,7 +2434,7 @@ with tab_impact:
 
             # ---- SECTION: Retention & frequency — do local buyers come back? ----
             st.subheader("Retention & Frequency — Do Local Buyers Come Back?")
-            st.caption("Frequency = orders per customer within the same week. Retention = whether this week's local buyers ordered again in following weeks (local buyers only — no non-local comparison available).")
+            st.caption("Frequency = orders per customer within the same week (headline week above).")
 
             freq_cols = st.columns(2)
             freq_metrics = [
@@ -2431,18 +2446,40 @@ with tab_impact:
                     if row is not None:
                         st.markdown(clean_html(render_delta_pill(label, lift_of(row))), unsafe_allow_html=True)
 
-            st.markdown(f"<div style='height:{12}px;'></div>", unsafe_allow_html=True)
-            st.markdown("**Retention cohort — local buyers only**")
+            st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+            cohort_row = get_retention_row("Retention — local buyers in cohort week")
+            cohort_start = display_value(cohort_row.get("Week start")) if cohort_row is not None else "-"
+            cohort_end = display_value(cohort_row.get("Week end")) if cohort_row is not None else "-"
+
+            st.markdown(
+                clean_html(f"""
+                <div style="background:#F5F3FF; border:1px solid #E2DBFF; border-radius:14px; padding:14px 20px; margin-bottom:12px;">
+                    <div style="font-size:13px; color:#6F5CFF; font-weight:700;">RETENTION COHORT — DEFINED</div>
+                    <div style="font-size:13px; color:#2f3240; margin-top:6px; line-height:1.6;">
+                        This uses an <strong>earlier week</strong> than the headline metrics above ({html.escape(cohort_start)} → {html.escape(cohort_end)}),
+                        so all 4 follow-up weeks have already actually happened — not projected. Local buyers only; no non-local comparison available.
+                    </div>
+                    <ul style="font-size:13px; color:#2f3240; margin:8px 0 0 0; padding-left:18px; line-height:1.7;">
+                        <li><strong>Cohort Size</strong> — customers who bought local range during that week</li>
+                        <li><strong>W1</strong> — % of the cohort who returned to the site exactly 1 week later</li>
+                        <li><strong>W2–4</strong> — % who returned in weeks 2, 3, or 4 after (not already counted in W1)</li>
+                        <li><strong>W1–4</strong> — % who returned at any point within the first 4 weeks (W1 or W2–4 combined)</li>
+                    </ul>
+                </div>
+                """),
+                unsafe_allow_html=True,
+            )
 
             retention_metrics = [
                 ("Cohort Size", "Retention — local buyers in cohort week"),
-                ("Returned W+1", "Retention W+1 % (return to site next week)"),
-                ("Returned W+2–4", "Retention W+2–4 % (return weeks 2–4 after cohort)"),
-                ("Returned W+1–4", "Retention W+1–4 % (return within 4 weeks after cohort)"),
+                ("Returned W1", "Retention W1 % (return to site next week)"),
+                ("Returned W2–4", "Retention W2–4 % (return weeks 2–4 after cohort)"),
+                ("Returned W1–4", "Retention W1–4 % (return within 4 weeks after cohort)"),
             ]
             retention_cols = st.columns(4)
             for col, (label, metric_name) in zip(retention_cols, retention_metrics):
-                row = get_row("Retention & frequency — do local buyers come back?", metric_name)
+                row = get_retention_row(metric_name)
                 with col:
                     if row is not None:
                         val = local_val(row)
@@ -2466,6 +2503,16 @@ with tab_impact:
                 "Revenue Share WoW (pp)": get_row("Commercial performance — how is the range doing financially?", "Local revenue share WoW (pp)"),
             }
             WOW_LABELS = {"Sales WoW Change (£)", "Revenue Share WoW (pp)"}
+            # These two cells have Google Sheets' percent format applied, so the API
+            # returns the raw fraction (0.3286) instead of the display value (32.86%).
+            FRACTION_PCT_LABELS = {"Local Revenue Share (%)", "Local VM%"}
+
+            def fmt_fraction_pct(value):
+                num = pd.to_numeric(value, errors="coerce")
+                if pd.isna(num):
+                    text = str(value).strip()
+                    return text if text and text.lower() != "nan" else "-"
+                return f"{num * 100:,.2f}%"
 
             # Flag if the data looks off (e.g. Local = 0 while VM%/ASP sit under Non-local)
             looks_off = any(
@@ -2490,6 +2537,9 @@ with tab_impact:
                             suffix = "" if "£" in label else " pp"
                             local_display = fmt_signed(local_val(row), prefix="£" if "£" in label else "", suffix=suffix)
                             subtitle = "vs prior complete week"
+                        elif label in FRACTION_PCT_LABELS:
+                            local_display = fmt_fraction_pct(local_val(row))
+                            subtitle = f"Non-local/site: {fmt_fraction_pct(nonlocal_val(row))}"
                         else:
                             local_display = display_value(local_val(row))
                             subtitle = f"Non-local/site: {display_value(nonlocal_val(row))}"
