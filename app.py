@@ -2105,21 +2105,36 @@ def parse_lift_text(text):
     }
 
 
-def render_delta_pill(label, lift_info) -> str:
+def render_delta_pill(label, lift_info, local_display=None, nonlocal_display=None, metric_name=None) -> str:
     if not lift_info:
         return ""
-    arrow = "▲" if lift_info["direction"] == "higher" else "▼"
+    direction_word = "higher" if lift_info["direction"] == "higher" else "lower"
     color = "#6F5CFF" if lift_info["direction"] == "higher" else "#8A8F9C"
     bg = "#F5F3FF" if lift_info["direction"] == "higher" else "#F3F4F6"
+    arrow = "▲" if lift_info["direction"] == "higher" else "▼"
     magnitude = f"{lift_info['value']}{lift_info['unit']}"
-    relative_txt = f" ({lift_info['relative']}% relative)" if lift_info["relative"] else ""
+    metric_label = metric_name or label
+
+    sentence = f"{magnitude} {direction_word} than non-local {metric_label}"
+    if lift_info["relative"]:
+        sentence += f" ({lift_info['relative']}% {direction_word})"
+
+    values_html = ""
+    if local_display is not None and nonlocal_display is not None:
+        values_html = f"""
+        <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:4px;">
+            <div style="font-size:24px; font-weight:800; color:#2f3240;">{html.escape(str(local_display))}</div>
+            <div style="font-size:13px; color:#9096a3;">vs {html.escape(str(nonlocal_display))} non-local</div>
+        </div>
+        """
+
     return f"""
     <div style="
         background:{bg}; border-radius:14px; padding:14px 16px; margin-bottom:10px;
     ">
-        <div style="font-size:12px; color:#6b7280; font-weight:600; margin-bottom:4px;">{html.escape(label)}</div>
-        <div style="font-size:20px; font-weight:800; color:{color};">{arrow} {html.escape(magnitude)}</div>
-        <div style="font-size:11px; color:#9096a3; margin-top:2px;">vs non-local orders{relative_txt}</div>
+        <div style="font-size:12px; color:#6b7280; font-weight:600; margin-bottom:6px;">{html.escape(label)}</div>
+        {values_html}
+        <div style="font-size:13px; font-weight:700; color:{color};">{arrow} {html.escape(sentence)}</div>
     </div>
     """
 
@@ -2311,10 +2326,10 @@ with tab_impact:
             basket_pill_cols = st.columns(2)
             with basket_pill_cols[0]:
                 if aov_row is not None:
-                    st.markdown(clean_html(render_delta_pill("Order Value (AOV)", cmp_of(aov_row))), unsafe_allow_html=True)
+                    st.markdown(clean_html(render_delta_pill("Order Value (AOV)", cmp_of(aov_row), local_display=fmt_num(lr(aov_row), prefix="£"), nonlocal_display=fmt_num(nlr(aov_row), prefix="£"), metric_name="AOV")), unsafe_allow_html=True)
             with basket_pill_cols[1]:
                 if ipo_row is not None:
-                    st.markdown(clean_html(render_delta_pill("Items/Units per Order (IPO)", cmp_of(ipo_row))), unsafe_allow_html=True)
+                    st.markdown(clean_html(render_delta_pill("Items/Units per Order (IPO)", cmp_of(ipo_row), local_display=fmt_num(lr(ipo_row)), nonlocal_display=fmt_num(nlr(ipo_row)), metric_name="IPO")), unsafe_allow_html=True)
 
             st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
@@ -2413,8 +2428,14 @@ with tab_impact:
                 nonlocal_delta_row = get(seg_section, "MoM Non-Local Range Δ", period=mom_period)
                 local_delta_row = get(seg_section, "MoM Local Range Δ", period=mom_period)
 
+                prior_label, current_label = "prior month", "this month"
+                if mom_period.startswith("MoM (") and mom_period.endswith(")"):
+                    inner = mom_period[len("MoM ("):-1]
+                    if " → " in inner:
+                        prior_label, current_label = inner.split(" → ", 1)
+
                 st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-                st.markdown(f"**Month-over-Month Change — {mom_period}**")
+                st.markdown(f"**Month-over-Month Change** — comparing {current_label} to {prior_label}")
 
                 mom_col1, mom_col2 = st.columns(2)
                 for mcol, row, label in [(mom_col1, nonlocal_delta_row, "Non-Local Range"), (mom_col2, local_delta_row, "Local Range")]:
@@ -2430,7 +2451,8 @@ with tab_impact:
                             st.markdown(
                                 clean_html(f"""
                                 <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:14px; padding:14px 18px;">
-                                    <div style="font-size:13px; font-weight:700; color:#2f3240; margin-bottom:8px;">{html.escape(label)}</div>
+                                    <div style="font-size:13px; font-weight:700; color:#2f3240; margin-bottom:2px;">{html.escape(label)}</div>
+                                    <div style="font-size:11px; color:#9096a3; margin-bottom:8px;">Change vs {html.escape(prior_label)}</div>
                                     <div style="font-size:13px; color:#4b5563; line-height:1.7;">
                                         NC: {html.escape(nc_c)} customers ({html.escape(nc_p)})<br>
                                         EC: {html.escape(ec_c)} customers ({html.escape(ec_p)})<br>
@@ -2455,7 +2477,7 @@ with tab_impact:
             st.caption(f"{PERFORMANCE_GLOSSARY['AOF']} Replaces the old week-based retention view, which was confusing because it always compared to a not-yet-complete future week.")
 
             if aof_row is not None:
-                st.markdown(clean_html(render_delta_pill("AOF (orders/customer/month)", cmp_of(aof_row))), unsafe_allow_html=True)
+                st.markdown(clean_html(render_delta_pill("AOF (orders/customer/month)", cmp_of(aof_row), local_display=fmt_num(lr(aof_row)), nonlocal_display=fmt_num(nlr(aof_row)), metric_name="AOF")), unsafe_allow_html=True)
 
             st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
@@ -2529,10 +2551,10 @@ with tab_impact:
             rating_cols = st.columns(2)
             with rating_cols[0]:
                 if rating_row is not None:
-                    st.markdown(clean_html(render_delta_pill("Customer Rating", cmp_of(rating_row))), unsafe_allow_html=True)
+                    st.markdown(clean_html(render_delta_pill("Customer Rating", cmp_of(rating_row), local_display=fmt_num(lr(rating_row)), nonlocal_display=fmt_num(nlr(rating_row)), metric_name="rating")), unsafe_allow_html=True)
             with rating_cols[1]:
                 if comment_row is not None:
-                    st.markdown(clean_html(render_delta_pill("Customers Leaving a Comment", cmp_of(comment_row))), unsafe_allow_html=True)
+                    st.markdown(clean_html(render_delta_pill("Customers Leaving a Comment", cmp_of(comment_row), local_display=fmt_num(lr(comment_row), suffix="%"), nonlocal_display=fmt_num(nlr(comment_row), suffix="%"), metric_name="comment rate")), unsafe_allow_html=True)
 
             st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
