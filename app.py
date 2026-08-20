@@ -2301,6 +2301,7 @@ with tab_impact:
             exec_row = get("Executive Summary", "Summary narrative")
             if exec_row is not None:
                 summary_text = display_value(exec_row.get("Notes"))
+                summary_text = re.sub(r"\blost\b", "decreased", summary_text, flags=re.IGNORECASE)
                 st.markdown(
                     clean_html(f"""
                     <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:14px; padding:18px 22px; box-shadow:0 6px 16px rgba(17,24,39,0.05);">
@@ -2454,9 +2455,9 @@ with tab_impact:
                                     <div style="font-size:13px; font-weight:700; color:#2f3240; margin-bottom:2px;">{html.escape(label)}</div>
                                     <div style="font-size:11px; color:#9096a3; margin-bottom:8px;">Change vs {html.escape(prior_label)}</div>
                                     <div style="font-size:13px; color:#4b5563; line-height:1.7;">
-                                        NC: {html.escape(nc_c)} customers ({html.escape(nc_p)})<br>
-                                        EC: {html.escape(ec_c)} customers ({html.escape(ec_p)})<br>
-                                        Winback: {html.escape(wb_c)} customers ({html.escape(wb_p)})<br>
+                                        NC: {html.escape(nc_c)} customers (absolute) &middot; share of customer base {html.escape(nc_p)} vs {html.escape(prior_label)}<br>
+                                        EC: {html.escape(ec_c)} customers (absolute) &middot; share of customer base {html.escape(ec_p)} vs {html.escape(prior_label)}<br>
+                                        Winback: {html.escape(wb_c)} customers (absolute) &middot; share of customer base {html.escape(wb_p)} vs {html.escape(prior_label)}<br>
                                         <strong>Total: {html.escape(tot_c)} customers</strong>
                                     </div>
                                 </div>
@@ -2481,19 +2482,25 @@ with tab_impact:
 
             st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
+            def short_month(period_label):
+                text = str(period_label).strip()
+                return text.split(" ")[0] if text else text
+
+            current_month_short = short_month(headline_period)
+
             aof_cols = st.columns(3)
             with aof_cols[0]:
                 if aof_mom_local is not None:
                     this_val = fmt_num(lr(aof_mom_local))
                     prior_val = fmt_num(aof_mom_local.get("Prior month value"))
-                    prior_period_label = display_value(aof_mom_local.get("Prior month period"))
-                    st.markdown(clean_html(top_metric_card("Local Range AOF (MoM)", this_val, f"{prior_val} in {prior_period_label} → {this_val} now", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
+                    prior_month_short = short_month(aof_mom_local.get("Prior month period"))
+                    st.markdown(clean_html(top_metric_card("Local Range AOF", this_val, f"{prior_val} in {prior_month_short}, {this_val} in {current_month_short}", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
             with aof_cols[1]:
                 if aof_mom_nonlocal is not None:
                     this_val = fmt_num(nlr(aof_mom_nonlocal))
                     prior_val = fmt_num(aof_mom_nonlocal.get("Prior month value"))
-                    prior_period_label = display_value(aof_mom_nonlocal.get("Prior month period"))
-                    st.markdown(clean_html(top_metric_card("Non-Local Range AOF (MoM)", this_val, f"{prior_val} in {prior_period_label} → {this_val} now", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+                    prior_month_short = short_month(aof_mom_nonlocal.get("Prior month period"))
+                    st.markdown(clean_html(top_metric_card("Non-Local Range AOF", this_val, f"{prior_val} in {prior_month_short}, {this_val} in {current_month_short}", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
             with aof_cols[2]:
                 context_customers_row = get("Context", "Customers")
                 if aof_row is not None and context_customers_row is not None:
