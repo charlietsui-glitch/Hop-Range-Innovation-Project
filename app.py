@@ -1252,7 +1252,7 @@ with tab_range:
     if not map_counts.empty:
         map_counts["bubble_size"] = map_counts["Producer_Count"] * 6
         map_counts["label"] = map_counts["Producer_Count"].astype(str)
-        fig_map = px.scatter_mapbox(
+        fig_map = px.scatter_map(
             map_counts,
             lat="Latitude_num",
             lon="Longitude_num",
@@ -1279,7 +1279,7 @@ with tab_range:
             opacity=0.45,
         )
         fig_map.update_layout(
-            mapbox_style="carto-positron",
+            map_style="carto-positron",
             margin=dict(r=0, t=0, l=0, b=0),
             coloraxis_colorbar=dict(title="Producer Count"),
         )
@@ -1784,7 +1784,7 @@ with tab_demo:
         if demo_map.empty:
             st.info("No matching coordinates found for these neighbourhoods yet.")
         else:
-            fig_demo_map = px.scatter_mapbox(
+            fig_demo_map = px.scatter_map(
                 demo_map,
                 lat="Latitude_num",
                 lon="Longitude_num",
@@ -1804,7 +1804,7 @@ with tab_demo:
             )
             fig_demo_map.update_traces(marker=dict(size=16))
             fig_demo_map.update_layout(
-                mapbox_style="carto-positron",
+                map_style="carto-positron",
                 margin=dict(r=0, t=0, l=0, b=0),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.12, xanchor="center", x=0.5),
             )
