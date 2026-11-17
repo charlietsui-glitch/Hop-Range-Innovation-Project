@@ -102,6 +102,52 @@ CATEGORY_PIE_COLORS = [
 PURPLE_SCALE = ["#D9D0FF", "#6F5CFF"]
 
 # -----------------------
+# COUNTRY CONFIG
+# (Tabs 1-3 use this to load the right data files and re-centre the map.
+#  Rollout Tracker and Performance Tracking stay UK-only / unaffected.)
+# -----------------------
+COUNTRY_DATA_FILES = {
+    "UK": {
+        "label": "United Kingdom",
+        "producers": "london_producers.csv",
+        "creators": "local_market_creators.csv",
+        "trends": "local_market_trends.csv",
+        "demographics": "london_neighbourhood_demographics.csv",
+    },
+    "UAE": {
+        "label": "United Arab Emirates",
+        "producers": "uae_producers.csv",
+        "creators": "uae_local_market_creators.csv",
+        "trends": "uae_local_market_trends.csv",
+        "demographics": "uae_neighbourhood_demographics.csv",
+    },
+    "Italy": {
+        "label": "Italy",
+        "producers": "italy_producers.csv",
+        "creators": "italy_local_market_creators.csv",
+        "trends": "italy_local_market_trends.csv",
+        "demographics": "italy_neighbourhood_demographics.csv",
+    },
+}
+
+# Map centre/zoom per country, so switching countries re-centres both maps.
+# UK centres on London; Italy centres between Milan/Florence/Rome since the
+# data spans all three; UAE centres between Dubai and Abu Dhabi.
+COUNTRY_MAP_CONFIG = {
+    "UK": {"center": {"lat": 51.5074, "lon": -0.1278}, "zoom": 9.5},
+    "UAE": {"center": {"lat": 24.90, "lon": 54.85}, "zoom": 7.2},
+    "Italy": {"center": {"lat": 43.0, "lon": 12.0}, "zoom": 5.6},
+}
+
+# -----------------------
+# BRANDING (Deliveroo HOP)
+# -----------------------
+HOP_TEAL = "#52b5aa"
+HOP_TEAL_DARK = "#3f9389"
+HOP_CREAM = "#e1f8f7"
+HOP_LOGO_ICON = Path("assets/branding/hop_roo_icon.png")
+
+# -----------------------
 # INLINE SVG ICONS (no external image files needed)
 # -----------------------
 def _svg(path_markup: str) -> str:
@@ -1080,15 +1126,93 @@ def render_trend_card(rank, trend, strength, description, image_path=None):
 
 
 # -----------------------
-# LOAD DATA
+# SIDEBAR BRANDING (Deliveroo HOP) + TEAL STYLING
 # -----------------------
-producer_csv_path = Path("london_producers.csv")
-creators_csv_path = Path("local_market_creators.csv")
-trends_csv_path = Path("local_market_trends.csv")
-demographics_csv_path = Path("london_neighbourhood_demographics.csv")
+_hop_icon_uri = image_path_to_data_uri(HOP_LOGO_ICON)
+st.markdown(
+    f"""
+    <style>
+        section[data-testid="stSidebar"] {{
+            background-color: {HOP_TEAL} !important;
+        }}
+        section[data-testid="stSidebar"] * {{
+            color: {HOP_CREAM} !important;
+        }}
+        section[data-testid="stSidebar"] label, 
+        section[data-testid="stSidebar"] .stSelectbox label,
+        section[data-testid="stSidebar"] .stTextInput label,
+        section[data-testid="stSidebar"] .stCheckbox label p {{
+            color: {HOP_CREAM} !important;
+            font-weight: 600 !important;
+        }}
+        /* Widget surfaces stay light so dropdown text/icons remain legible,
+           matching the reference layout's light filter boxes on a dark sidebar */
+        section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+        section[data-testid="stSidebar"] input[type="text"],
+        section[data-testid="stSidebar"] div[data-baseweb="input"] {{
+            background-color: #ffffff !important;
+            color: #2f3240 !important;
+            border-radius: 10px !important;
+            border: 1px solid {HOP_TEAL_DARK} !important;
+        }}
+        section[data-testid="stSidebar"] div[data-baseweb="select"] span,
+        section[data-testid="stSidebar"] div[data-baseweb="select"] div {{
+            color: #2f3240 !important;
+        }}
+        section[data-testid="stSidebar"] [data-testid="stCheckbox"] svg {{
+            fill: #ffffff !important;
+        }}
+        section[data-testid="stSidebar"] hr {{
+            border-color: {HOP_TEAL_DARK} !important;
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+if _hop_icon_uri:
+    st.sidebar.markdown(
+        f"""
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <img src="{_hop_icon_uri}" style="width:40px; height:40px; border-radius:10px;">
+            <div style="font-size:19px; font-weight:800; color:{HOP_CREAM};">deliveroo HOP</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    st.sidebar.markdown(f"### deliveroo HOP")
+
+# -----------------------
+# COUNTRY SELECTOR (Tabs 1-3 only — Rollout Tracker & Performance Tracking
+# stay UK/Hoxton-only regardless of this selection)
+# -----------------------
+country_options = list(COUNTRY_DATA_FILES.keys())
+selected_country = st.sidebar.selectbox(
+    "Country",
+    country_options,
+    format_func=lambda c: COUNTRY_DATA_FILES[c]["label"],
+    key="country_select",
+)
+country_files = COUNTRY_DATA_FILES[selected_country]
+country_map_cfg = COUNTRY_MAP_CONFIG[selected_country]
+
+st.sidebar.divider()
+st.sidebar.title("Filters")
+
+# -----------------------
+# LOAD DATA (country-dependent)
+# -----------------------
+producer_csv_path = Path(country_files["producers"])
+creators_csv_path = Path(country_files["creators"])
+trends_csv_path = Path(country_files["trends"])
+demographics_csv_path = Path(country_files["demographics"])
 
 if not producer_csv_path.exists():
-    st.error("london_producers.csv was not found in the project folder.")
+    st.error(
+        f"'{producer_csv_path}' was not found in the project folder — needed for "
+        f"{country_files['label']}. Add this file to the repo to enable this country."
+    )
     st.stop()
 
 df = pd.read_csv(producer_csv_path).fillna("N/A")
@@ -1114,17 +1238,17 @@ if not creators_df.empty and "Name / Handle" in creators_df.columns:
     creators_df["Profile Pic"] = creators_df["Name / Handle"].apply(resolve_creator_pic)
 
 # -----------------------
-# SIDEBAR FILTERS
+# SIDEBAR FILTERS (Neighbourhood/Category/Search — rebuilt per country since
+# the option lists come from whichever country's producer file loaded above)
 # -----------------------
-st.sidebar.title("Filters")
 neighbourhoods = ["All"] + sorted(df["Neighbourhood"].dropna().astype(str).unique().tolist())
-selected_neighbourhood = st.sidebar.selectbox("Neighbourhood", neighbourhoods)
+selected_neighbourhood = st.sidebar.selectbox("Neighbourhood", neighbourhoods, key=f"nbhd_{selected_country}")
 
 categories = ["All"] + sorted(df["Category"].dropna().astype(str).unique().tolist())
-selected_category = st.sidebar.selectbox("Category", categories)
+selected_category = st.sidebar.selectbox("Category", categories, key=f"cat_{selected_country}")
 
-search_term = st.sidebar.text_input("Search Producer")
-show_only_mapped = st.sidebar.checkbox("Show only rows with coordinates", value=False)
+search_term = st.sidebar.text_input("Search Producer", key=f"search_{selected_country}")
+show_only_mapped = st.sidebar.checkbox("Show only rows with coordinates", value=False, key=f"mapped_{selected_country}")
 
 # -----------------------
 # FILTER DATA
@@ -1157,13 +1281,13 @@ tab_range, tab_trends, tab_demo, tab_rollout, tab_impact = st.tabs(["🏪 Hyperl
 # =========================================================
 with tab_range:
     st.title("Hyperlocal Range")
-    st.caption("Interactive sourcing dashboard for local producers across London.")
+    st.caption(f"Interactive sourcing dashboard for local producers across {country_files['label']}.")
 
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     with kpi1:
         st.markdown(clean_html(top_metric_card("Total Producers", len(filtered_df), "Across all neighbourhoods", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
     with kpi2:
-        st.markdown(clean_html(top_metric_card("Neighbourhoods", filtered_df["Neighbourhood"].nunique(), "Across London", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+        st.markdown(clean_html(top_metric_card("Neighbourhoods", filtered_df["Neighbourhood"].nunique(), f"Across {country_files['label']}", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
     with kpi3:
         st.markdown(clean_html(top_metric_card("Categories", filtered_df["Category"].nunique(), "Artisanal categories", icon=ICON_GRID, icon_bg="#E6F7EC", icon_color="#48B26B", card_bg="#F0FBF3")), unsafe_allow_html=True)
     with kpi4:
@@ -1241,7 +1365,7 @@ with tab_range:
             st.info("No neighbourhood data.")
 
     st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-    st.subheader("London Map")
+    st.subheader(f"{selected_country} Map")
 
     map_counts = (
         filtered_map_df
@@ -1252,7 +1376,7 @@ with tab_range:
     if not map_counts.empty:
         map_counts["bubble_size"] = map_counts["Producer_Count"] * 6
         map_counts["label"] = map_counts["Producer_Count"].astype(str)
-        fig_map = px.scatter_map(
+        fig_map = px.scatter_mapbox(
             map_counts,
             lat="Latitude_num",
             lon="Longitude_num",
@@ -1269,8 +1393,8 @@ with tab_range:
                 "bubble_size": False,
             },
             text="label",
-            zoom=9.5,
-            center={"lat": 51.5074, "lon": -0.1278},
+            zoom=country_map_cfg["zoom"],
+            center=country_map_cfg["center"],
             height=MAP_HEIGHT,
         )
         fig_map.update_traces(
@@ -1279,7 +1403,7 @@ with tab_range:
             opacity=0.45,
         )
         fig_map.update_layout(
-            map_style="carto-positron",
+            mapbox_style="carto-positron",
             margin=dict(r=0, t=0, l=0, b=0),
             coloraxis_colorbar=dict(title="Producer Count"),
         )
@@ -1489,7 +1613,7 @@ with tab_trends:
     st.title("Trend Intelligence")
     st.caption("Creator signals and emerging food & drink trends across our local markets")
 
-    selected_market = "London"
+    selected_market = country_files["label"]
 
     if creators_df.empty:
         st.info("No creator data found. Please load local_market_creators.csv.")
@@ -1735,8 +1859,8 @@ with tab_demo:
 
     if demographics_df.empty:
         st.info(
-            "No demographic data found. Add london_neighbourhood_demographics.csv to the "
-            "project folder to unlock this tab."
+            f"No demographic data found. Add '{country_files['demographics']}' to the "
+            f"project folder to unlock this tab for {country_files['label']}."
         )
     else:
         demo_work = demographics_df.copy()
@@ -1784,7 +1908,7 @@ with tab_demo:
         if demo_map.empty:
             st.info("No matching coordinates found for these neighbourhoods yet.")
         else:
-            fig_demo_map = px.scatter_map(
+            fig_demo_map = px.scatter_mapbox(
                 demo_map,
                 lat="Latitude_num",
                 lon="Longitude_num",
@@ -1798,13 +1922,13 @@ with tab_demo:
                     "Longitude_num": False,
                     "Spending Bucket": True,
                 },
-                zoom=9.5,
-                center={"lat": 51.5074, "lon": -0.1278},
+                zoom=country_map_cfg["zoom"],
+                center=country_map_cfg["center"],
                 height=MAP_HEIGHT,
             )
             fig_demo_map.update_traces(marker=dict(size=16))
             fig_demo_map.update_layout(
-                map_style="carto-positron",
+                mapbox_style="carto-positron",
                 margin=dict(r=0, t=0, l=0, b=0),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.12, xanchor="center", x=0.5),
             )
