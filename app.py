@@ -1174,7 +1174,7 @@ st.markdown(
            upgrades that dependency — the data-baseweb rules are kept below too,
            as a harmless backup, but shouldn't be relied on alone. */
         section[data-testid="stSidebar"] div[data-testid="stSelectbox"] > div,
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] * {{
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] > div * {{
             background-color: #ffffff !important;
             color: #2f3240 !important;
             -webkit-text-fill-color: #2f3240 !important;
@@ -1184,11 +1184,17 @@ st.markdown(
             border: 1px solid {HOP_TEAL_DARK} !important;
             overflow: hidden !important;
         }}
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] * {{
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] > div * {{
             border: none !important;
         }}
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] svg {{
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] > div svg {{
             fill: #2f3240 !important;
+        }}
+        /* Label ("Country", "Neighbourhood", etc.) stays cream-on-teal, no box */
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] > label p {{
+            color: {HOP_CREAM} !important;
+            font-weight: 600 !important;
+            background-color: transparent !important;
         }}
 
         /* Backup rules in case baseweb attributes are present */
@@ -1205,7 +1211,7 @@ st.markdown(
 
         /* --- Text input (Search Producer) --- */
         section[data-testid="stSidebar"] div[data-testid="stTextInput"] > div,
-        section[data-testid="stSidebar"] div[data-testid="stTextInput"] * {{
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] > div * {{
             background-color: #ffffff !important;
             color: #2f3240 !important;
             -webkit-text-fill-color: #2f3240 !important;
@@ -1219,6 +1225,12 @@ st.markdown(
             color: #8a8f9c !important;
             -webkit-text-fill-color: #8a8f9c !important;
             opacity: 1 !important;
+        }}
+        /* Label ("Search Producer") stays cream-on-teal, no box */
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] > label p {{
+            color: {HOP_CREAM} !important;
+            font-weight: 600 !important;
+            background-color: transparent !important;
         }}
 
         section[data-testid="stSidebar"] [data-testid="stCheckbox"] svg {{
