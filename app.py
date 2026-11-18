@@ -142,8 +142,8 @@ COUNTRY_MAP_CONFIG = {
 # -----------------------
 # BRANDING (Deliveroo HOP)
 # -----------------------
-HOP_TEAL = "#00b6a8"
-HOP_TEAL_DARK = "#008f84"
+HOP_TEAL = "#00ccbd"
+HOP_TEAL_DARK = "#00a89b"
 HOP_CREAM = "#e9f5f3"
 HOP_LOGO_BANNER = Path("assets/branding/hop_logo_banner.png")
 
@@ -1138,7 +1138,10 @@ st.markdown(
            default background on top and wash the teal out. The white boxes
            below override this specifically wherever they're needed, and win
            because their selectors are more specific. */
-        section[data-testid="stSidebar"] {{
+        section[data-testid="stSidebar"],
+        section[data-testid="stSidebar"] > div,
+        div[data-testid="stSidebarContent"],
+        div[data-testid="stSidebarUserContent"] {{
             background-color: {HOP_TEAL} !important;
         }}
         section[data-testid="stSidebar"] div {{
@@ -1164,14 +1167,17 @@ st.markdown(
            sibling elements, so styling only one leaves a mismatched two-tone
            box — styling the outer wrapper and clearing everything inside it
            fixes that regardless of the internal DOM structure. */
-        section[data-testid="stSidebar"] div[data-baseweb="select"] {{
+        section[data-testid="stSidebar"] div[data-baseweb="select"],
+        section[data-testid="stSidebar"] div[data-baseweb="select"] div {{
             background-color: #ffffff !important;
+            color: #2f3240 !important;
+        }}
+        section[data-testid="stSidebar"] div[data-baseweb="select"] {{
             border-radius: 10px !important;
             border: 1px solid {HOP_TEAL_DARK} !important;
             overflow: hidden !important;
         }}
         section[data-testid="stSidebar"] div[data-baseweb="select"] * {{
-            background-color: transparent !important;
             border: none !important;
             color: #2f3240 !important;
             -webkit-text-fill-color: #2f3240 !important;
@@ -1186,14 +1192,17 @@ st.markdown(
         }}
 
         /* --- Text input (Search Producer) --- */
-        section[data-testid="stSidebar"] div[data-baseweb="input"] {{
+        section[data-testid="stSidebar"] div[data-baseweb="input"],
+        section[data-testid="stSidebar"] div[data-baseweb="input"] div {{
             background-color: #ffffff !important;
+            color: #2f3240 !important;
+        }}
+        section[data-testid="stSidebar"] div[data-baseweb="input"] {{
             border-radius: 10px !important;
             border: 1px solid {HOP_TEAL_DARK} !important;
             overflow: hidden !important;
         }}
         section[data-testid="stSidebar"] div[data-baseweb="input"] * {{
-            background-color: transparent !important;
             color: #2f3240 !important;
             -webkit-text-fill-color: #2f3240 !important;
         }}
