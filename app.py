@@ -569,11 +569,18 @@ def load_hop_catalogue(path_str: str) -> pd.DataFrame:
 
 
 def match_catalogue_to_keywords(catalogue_df: pd.DataFrame, keywords: list, local_producer_names: set):
-    """Match live catalogue rows to a trend's keywords (via brand or category
-    tag substring match), restrict to Live status, then split the results
-    into genuine local/hyperlocal producer matches vs. everything else
-    (national/supermarket brands) — mirroring how the reference dashboard
-    separates 'similar listed SKUs' from excluded national lines."""
+    """Match live catalogue rows to a trend's keywords (via brand or product
+    name substring match), restrict to Live status, then flag which of those
+    matches come from a curated hyperlocal producer.
+
+    Important: the catalogue's 'brand' field only ever contains the retail
+    partner (e.g. 'Morrisons Deliveroo Hop' / 'Waitrose Deliveroo Hop'), never
+    the actual producer/manufacturer — so checking THAT field against the
+    curated producer list (an earlier version of this function did) could
+    never match, no matter how relevant the SKU actually was. The only place
+    a producer's name could realistically appear is inside the product title
+    itself, so that's what gets checked instead.
+    """
     if not keywords:
         empty = catalogue_df.iloc[0:0]
         return empty, empty, set()
@@ -586,7 +593,12 @@ def match_catalogue_to_keywords(catalogue_df: pd.DataFrame, keywords: list, loca
     if "status" in matched.columns:
         matched = matched[matched["status"].astype(str).str.strip().str.lower() == "live"]
 
-    is_local = matched["_norm_brand"].isin(local_producer_names)
+    if local_producer_names:
+        producer_pattern = "|".join(re.escape(p) for p in local_producer_names if p)
+        is_local = matched["_norm_name"].str.contains(producer_pattern, regex=True, na=False) if producer_pattern else pd.Series(False, index=matched.index)
+    else:
+        is_local = pd.Series(False, index=matched.index)
+
     local_rows = matched[is_local]
     excluded_brands = set(matched.loc[~is_local, "brand"].astype(str).str.strip().unique().tolist())
 
@@ -1892,30 +1904,28 @@ with tab_trends:
                 matched, local_rows, excluded_brands = match_catalogue_to_keywords(
                     catalogue_df, keywords, local_producer_names
                 )
-                with st.expander(f"{len(local_rows)} similar listed SKUs"):
-                    st.caption(
-                        "Hyperlocal and niche listed SKUs only — matched by brand and product name "
-                        "against the live UK catalogue."
-                    )
+                with st.expander(f"{len(matched)} similar listed SKUs already live"):
                     st.caption(f"Matched from these trend keywords: {', '.join(keywords) if keywords else '-'}")
-                    if excluded_brands:
-                        sample_excluded = ", ".join(sorted(excluded_brands)[:5])
-                        st.caption(
-                            f"{len(excluded_brands)} supermarket / national brand(s) also matched these keywords "
-                            f"and were excluded ({sample_excluded})."
-                        )
-                    if local_rows.empty:
-                        st.info("No matching local SKUs found in the live catalogue for this trend yet.")
+                    st.caption(
+                        f"Of these, **{len(local_rows)}** are from your curated hyperlocal producers — "
+                        "the rest are from the general Hop catalogue (brand field only identifies the "
+                        "retail partner, Morrisons/Waitrose, not the product's own manufacturer, so this "
+                        "is checked against each product's name instead)."
+                    )
+                    if matched.empty:
+                        st.info("No matching SKUs found in the live catalogue for this trend yet — a genuine gap.")
                     else:
-                        name_col = local_rows["_display_name_col"].iloc[0] if "_display_name_col" in local_rows.columns else "menu_facing_name"
+                        name_col = matched["_display_name_col"].iloc[0] if "_display_name_col" in matched.columns else "menu_facing_name"
+                        display_matched = matched.copy()
+                        display_matched["Hyperlocal?"] = display_matched.index.isin(local_rows.index)
                         st.dataframe(
-                            local_rows.rename(columns={
-                                "brand": "Brand",
+                            display_matched.rename(columns={
+                                "brand": "Retail Partner",
                                 "product_id": "Product ID",
                                 name_col: "Product Name",
-                            })[["Brand", "Product ID", "Product Name"]],
+                            })[["Product Name", "Retail Partner", "Product ID", "Hyperlocal?"]],
                             use_container_width=True,
-                            height=min(300, 48 + 35 * len(local_rows)),
+                            height=min(300, 48 + 35 * len(display_matched)),
                         )
 
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
