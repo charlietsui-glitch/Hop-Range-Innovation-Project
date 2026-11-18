@@ -142,10 +142,10 @@ COUNTRY_MAP_CONFIG = {
 # -----------------------
 # BRANDING (Deliveroo HOP)
 # -----------------------
-HOP_TEAL = "#52b5aa"
-HOP_TEAL_DARK = "#3f9389"
-HOP_CREAM = "#e1f8f7"
-HOP_LOGO_ICON = Path("assets/branding/hop_roo_icon.png")
+HOP_TEAL = "#00b6a8"
+HOP_TEAL_DARK = "#008f84"
+HOP_CREAM = "#e9f5f3"
+HOP_LOGO_BANNER = Path("assets/branding/hop_logo_banner.png")
 
 # -----------------------
 # INLINE SVG ICONS (no external image files needed)
@@ -1128,7 +1128,7 @@ def render_trend_card(rank, trend, strength, description, image_path=None):
 # -----------------------
 # SIDEBAR BRANDING (Deliveroo HOP) + TEAL STYLING
 # -----------------------
-_hop_icon_uri = image_path_to_data_uri(HOP_LOGO_ICON)
+_hop_banner_uri = image_path_to_data_uri(HOP_LOGO_BANNER)
 st.markdown(
     f"""
     <style>
@@ -1138,27 +1138,48 @@ st.markdown(
         section[data-testid="stSidebar"] * {{
             color: {HOP_CREAM} !important;
         }}
-        section[data-testid="stSidebar"] label, 
+        section[data-testid="stSidebar"] label,
         section[data-testid="stSidebar"] .stSelectbox label,
         section[data-testid="stSidebar"] .stTextInput label,
         section[data-testid="stSidebar"] .stCheckbox label p {{
             color: {HOP_CREAM} !important;
             font-weight: 600 !important;
         }}
-        /* Widget surfaces stay light so dropdown text/icons remain legible,
-           matching the reference layout's light filter boxes on a dark sidebar */
-        section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
-        section[data-testid="stSidebar"] input[type="text"],
-        section[data-testid="stSidebar"] div[data-baseweb="input"] {{
+
+        /* --- Dropdowns (selectboxes) ---
+           Style the OUTER container as a single unified white pill, and make
+           every element inside it transparent/borderless. BaseWeb's Select
+           renders the value box and the dropdown-arrow box as separate
+           sibling elements, so styling only one (as before) left a mismatched
+           two-tone box. Styling the outer wrapper instead and clearing all
+           children fixes that regardless of the internal DOM structure. */
+        section[data-testid="stSidebar"] div[data-baseweb="select"] {{
             background-color: #ffffff !important;
-            color: #2f3240 !important;
             border-radius: 10px !important;
             border: 1px solid {HOP_TEAL_DARK} !important;
+            overflow: hidden !important;
         }}
-        section[data-testid="stSidebar"] div[data-baseweb="select"] span,
-        section[data-testid="stSidebar"] div[data-baseweb="select"] div {{
+        section[data-testid="stSidebar"] div[data-baseweb="select"] * {{
+            background-color: transparent !important;
+            border: none !important;
             color: #2f3240 !important;
         }}
+        section[data-testid="stSidebar"] div[data-baseweb="select"] svg {{
+            fill: #2f3240 !important;
+        }}
+
+        /* --- Text input (Search Producer) --- */
+        section[data-testid="stSidebar"] div[data-baseweb="input"] {{
+            background-color: #ffffff !important;
+            border-radius: 10px !important;
+            border: 1px solid {HOP_TEAL_DARK} !important;
+            overflow: hidden !important;
+        }}
+        section[data-testid="stSidebar"] div[data-baseweb="input"] * {{
+            background-color: transparent !important;
+            color: #2f3240 !important;
+        }}
+
         section[data-testid="stSidebar"] [data-testid="stCheckbox"] svg {{
             fill: #ffffff !important;
         }}
@@ -1166,22 +1187,36 @@ st.markdown(
             border-color: {HOP_TEAL_DARK} !important;
         }}
     </style>
+
+    <style>
+        /* The options list that appears when a dropdown is open is rendered
+           in a portal outside the sidebar, so it needs its own (unscoped)
+           rules rather than a section[data-testid="stSidebar"] selector. */
+        ul[role="listbox"] {{
+            background-color: #ffffff !important;
+        }}
+        ul[role="listbox"] li {{
+            color: #2f3240 !important;
+        }}
+        ul[role="listbox"] li:hover {{
+            background-color: {HOP_CREAM} !important;
+        }}
+    </style>
     """,
     unsafe_allow_html=True,
 )
 
-if _hop_icon_uri:
+if _hop_banner_uri:
     st.sidebar.markdown(
         f"""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-            <img src="{_hop_icon_uri}" style="width:40px; height:40px; border-radius:10px;">
-            <div style="font-size:19px; font-weight:800; color:{HOP_CREAM};">deliveroo HOP</div>
+        <div style="margin-bottom:10px;">
+            <img src="{_hop_banner_uri}" style="width:100%; border-radius:12px; display:block;">
         </div>
         """,
         unsafe_allow_html=True,
     )
 else:
-    st.sidebar.markdown(f"### deliveroo HOP")
+    st.sidebar.markdown("### deliveroo HOP")
 
 # -----------------------
 # COUNTRY SELECTOR (Tabs 1-3 only — Rollout Tracker & Performance Tracking
