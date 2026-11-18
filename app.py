@@ -1132,27 +1132,38 @@ _hop_banner_uri = image_path_to_data_uri(HOP_LOGO_BANNER)
 st.markdown(
     f"""
     <style>
+        /* Force the whole sidebar background teal, and every nested div
+           transparent so no inner Streamlit wrapper (there are usually 1-2
+           layers inside section[data-testid="stSidebar"]) can paint its own
+           default background on top and wash the teal out. The white boxes
+           below override this specifically wherever they're needed, and win
+           because their selectors are more specific. */
         section[data-testid="stSidebar"] {{
             background-color: {HOP_TEAL} !important;
         }}
-        section[data-testid="stSidebar"] * {{
-            color: {HOP_CREAM} !important;
+        section[data-testid="stSidebar"] div {{
+            background-color: transparent !important;
         }}
-        section[data-testid="stSidebar"] label,
-        section[data-testid="stSidebar"] .stSelectbox label,
-        section[data-testid="stSidebar"] .stTextInput label,
+
+        /* Cream text ONLY for labels/headings — intentionally NOT a blanket
+           '*' rule, since that was fighting the dark-text rule below on the
+           select/input boxes (a losing battle to win with specificity alone
+           once placeholder-rendering edge cases are involved). */
+        section[data-testid="stSidebar"] label p,
+        section[data-testid="stSidebar"] h1,
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3,
         section[data-testid="stSidebar"] .stCheckbox label p {{
             color: {HOP_CREAM} !important;
             font-weight: 600 !important;
         }}
 
         /* --- Dropdowns (selectboxes) ---
-           Style the OUTER container as a single unified white pill, and make
-           every element inside it transparent/borderless. BaseWeb's Select
-           renders the value box and the dropdown-arrow box as separate
-           sibling elements, so styling only one (as before) left a mismatched
-           two-tone box. Styling the outer wrapper instead and clearing all
-           children fixes that regardless of the internal DOM structure. */
+           Style the OUTER container as a single unified white pill. BaseWeb's
+           Select renders the value box and the dropdown-arrow box as separate
+           sibling elements, so styling only one leaves a mismatched two-tone
+           box — styling the outer wrapper and clearing everything inside it
+           fixes that regardless of the internal DOM structure. */
         section[data-testid="stSidebar"] div[data-baseweb="select"] {{
             background-color: #ffffff !important;
             border-radius: 10px !important;
@@ -1163,6 +1174,12 @@ st.markdown(
             background-color: transparent !important;
             border: none !important;
             color: #2f3240 !important;
+            -webkit-text-fill-color: #2f3240 !important;
+        }}
+        section[data-testid="stSidebar"] div[data-baseweb="select"] input::placeholder {{
+            color: #2f3240 !important;
+            -webkit-text-fill-color: #2f3240 !important;
+            opacity: 1 !important;
         }}
         section[data-testid="stSidebar"] div[data-baseweb="select"] svg {{
             fill: #2f3240 !important;
@@ -1178,6 +1195,12 @@ st.markdown(
         section[data-testid="stSidebar"] div[data-baseweb="input"] * {{
             background-color: transparent !important;
             color: #2f3240 !important;
+            -webkit-text-fill-color: #2f3240 !important;
+        }}
+        section[data-testid="stSidebar"] div[data-baseweb="input"] input::placeholder {{
+            color: #8a8f9c !important;
+            -webkit-text-fill-color: #8a8f9c !important;
+            opacity: 1 !important;
         }}
 
         section[data-testid="stSidebar"] [data-testid="stCheckbox"] svg {{
