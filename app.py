@@ -544,6 +544,55 @@ def strength_chip_style(strength):
     return "background:#edf2ff;color:#475569;"
 
 
+@st.cache_data
+def load_hop_catalogue(path_str: str) -> pd.DataFrame:
+    """Cached loader for the live UK catalogue — this file runs to several
+    thousand rows, so it's worth caching rather than re-reading on every
+    rerun (unlike the small producer/creator/trends files elsewhere)."""
+    catalogue = pd.read_csv(path_str).fillna("")
+    # Prefer the real product name field (menu_facing_name); fall back to the
+    # old category-tag field (category_facing_name) if an older file version
+    # is ever loaded, so this doesn't break if someone reuses a prior export.
+    name_col = "menu_facing_name" if "menu_facing_name" in catalogue.columns else "category_facing_name"
+    if name_col in catalogue.columns:
+        catalogue["_norm_name"] = (
+            catalogue[name_col]
+            .astype(str)
+            .str.replace(r"[#_\-]", " ", regex=True)
+            .str.lower()
+        )
+    else:
+        catalogue["_norm_name"] = ""
+    catalogue["_display_name_col"] = name_col
+    catalogue["_norm_brand"] = catalogue["brand"].astype(str).str.lower() if "brand" in catalogue.columns else ""
+    return catalogue
+
+
+def match_catalogue_to_keywords(catalogue_df: pd.DataFrame, keywords: list, local_producer_names: set):
+    """Match live catalogue rows to a trend's keywords (via brand or category
+    tag substring match), restrict to Live status, then split the results
+    into genuine local/hyperlocal producer matches vs. everything else
+    (national/supermarket brands) — mirroring how the reference dashboard
+    separates 'similar listed SKUs' from excluded national lines."""
+    if not keywords:
+        empty = catalogue_df.iloc[0:0]
+        return empty, empty, set()
+
+    mask = pd.Series(False, index=catalogue_df.index)
+    for kw in keywords:
+        mask = mask | catalogue_df["_norm_name"].str.contains(kw, na=False) | catalogue_df["_norm_brand"].str.contains(kw, na=False)
+
+    matched = catalogue_df[mask]
+    if "status" in matched.columns:
+        matched = matched[matched["status"].astype(str).str.strip().str.lower() == "live"]
+
+    is_local = matched["_norm_brand"].isin(local_producer_names)
+    local_rows = matched[is_local]
+    excluded_brands = set(matched.loc[~is_local, "brand"].astype(str).str.strip().unique().tolist())
+
+    return matched, local_rows, excluded_brands
+
+
 def build_platform_split(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy()
     d["Primary Platform"] = d["Platform"].apply(primary_platform)
@@ -1789,6 +1838,34 @@ with tab_trends:
         # ---- 2) Top 5 Trends (full width, one card per row) ----
         st.markdown("### Top 5 Trends from this pass")
         trends_to_show = trends_df.head(5).copy()
+
+        # Live catalogue cross-reference is UK-specific (the file only covers
+        # the UK Hop catalogue), so this section only renders for that market.
+        catalogue_path = Path("hop_uk_live_catalogue.csv")
+        show_catalogue_match = selected_country == "UK" and catalogue_path.exists()
+        if show_catalogue_match:
+            catalogue_df = load_hop_catalogue(catalogue_path)
+            local_producer_names = set(df["Producer"].dropna().astype(str).str.strip().str.lower().tolist())
+
+        STOPWORDS = {
+            "the", "a", "an", "and", "or", "in", "on", "for", "of", "to", "is",
+            "are", "with", "across", "continues", "gaining", "rising", "demand",
+            "opportunity", "grocery", "growth", "traction", "next", "big",
+        }
+
+        def extract_trend_keywords(trend_row):
+            raw_kw = str(trend_row.get("Keywords", "")).strip()
+            if raw_kw and raw_kw.lower() not in {"", "n/a", "nan"}:
+                return [k.strip().lower() for k in raw_kw.split(";") if k.strip()]
+            text = f"{trend_row.get('Trend', '')} {trend_row.get('Description', '')}"
+            tokens = re.findall(r"[a-zA-Z]+", text.lower())
+            seen, keywords = set(), []
+            for t in tokens:
+                if len(t) > 3 and t not in STOPWORDS and t not in seen:
+                    seen.add(t)
+                    keywords.append(t)
+            return keywords[:8]
+
         for _, row in trends_to_show.iterrows():
             rank_raw = pd.to_numeric(row.get("Rank", 0), errors="coerce")
             rank = int(rank_raw) if pd.notna(rank_raw) else 0
@@ -1809,6 +1886,37 @@ with tab_trends:
                 ),
                 unsafe_allow_html=True,
             )
+
+            if show_catalogue_match and not catalogue_df.empty:
+                keywords = extract_trend_keywords(row)
+                matched, local_rows, excluded_brands = match_catalogue_to_keywords(
+                    catalogue_df, keywords, local_producer_names
+                )
+                with st.expander(f"{len(local_rows)} similar listed SKUs"):
+                    st.caption(
+                        "Hyperlocal and niche listed SKUs only — matched by brand and product name "
+                        "against the live UK catalogue."
+                    )
+                    st.caption(f"Matched from these trend keywords: {', '.join(keywords) if keywords else '-'}")
+                    if excluded_brands:
+                        sample_excluded = ", ".join(sorted(excluded_brands)[:5])
+                        st.caption(
+                            f"{len(excluded_brands)} supermarket / national brand(s) also matched these keywords "
+                            f"and were excluded ({sample_excluded})."
+                        )
+                    if local_rows.empty:
+                        st.info("No matching local SKUs found in the live catalogue for this trend yet.")
+                    else:
+                        name_col = local_rows["_display_name_col"].iloc[0] if "_display_name_col" in local_rows.columns else "menu_facing_name"
+                        st.dataframe(
+                            local_rows.rename(columns={
+                                "brand": "Brand",
+                                "product_id": "Product ID",
+                                name_col: "Product Name",
+                            })[["Brand", "Product ID", "Product Name"]],
+                            use_container_width=True,
+                            height=min(300, 48 + 35 * len(local_rows)),
+                        )
 
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
