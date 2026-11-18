@@ -1166,47 +1166,56 @@ st.markdown(
            Select renders the value box and the dropdown-arrow box as separate
            sibling elements, so styling only one leaves a mismatched two-tone
            box — styling the outer wrapper and clearing everything inside it
-           fixes that regardless of the internal DOM structure. */
-        section[data-testid="stSidebar"] div[data-baseweb="select"],
-        section[data-testid="stSidebar"] div[data-baseweb="select"] div {{
+           fixes that regardless of the internal DOM structure.
+
+           PRIMARY targeting is Streamlit's own stable data-testid (stSelectbox /
+           stTextInput) rather than data-baseweb, which belongs to a third-party
+           internal library (BaseWeb) whose attributes can change if Streamlit
+           upgrades that dependency — the data-baseweb rules are kept below too,
+           as a harmless backup, but shouldn't be relied on alone. */
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] > div,
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] * {{
             background-color: #ffffff !important;
             color: #2f3240 !important;
+            -webkit-text-fill-color: #2f3240 !important;
         }}
-        section[data-testid="stSidebar"] div[data-baseweb="select"] {{
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] > div {{
             border-radius: 10px !important;
             border: 1px solid {HOP_TEAL_DARK} !important;
             overflow: hidden !important;
         }}
-        section[data-testid="stSidebar"] div[data-baseweb="select"] * {{
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] * {{
             border: none !important;
+        }}
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] svg {{
+            fill: #2f3240 !important;
+        }}
+
+        /* Backup rules in case baseweb attributes are present */
+        section[data-testid="stSidebar"] div[data-baseweb="select"],
+        section[data-testid="stSidebar"] div[data-baseweb="select"] div {{
+            background-color: #ffffff !important;
             color: #2f3240 !important;
-            -webkit-text-fill-color: #2f3240 !important;
         }}
         section[data-testid="stSidebar"] div[data-baseweb="select"] input::placeholder {{
             color: #2f3240 !important;
             -webkit-text-fill-color: #2f3240 !important;
             opacity: 1 !important;
         }}
-        section[data-testid="stSidebar"] div[data-baseweb="select"] svg {{
-            fill: #2f3240 !important;
-        }}
 
         /* --- Text input (Search Producer) --- */
-        section[data-testid="stSidebar"] div[data-baseweb="input"],
-        section[data-testid="stSidebar"] div[data-baseweb="input"] div {{
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] > div,
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] * {{
             background-color: #ffffff !important;
             color: #2f3240 !important;
+            -webkit-text-fill-color: #2f3240 !important;
         }}
-        section[data-testid="stSidebar"] div[data-baseweb="input"] {{
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] > div {{
             border-radius: 10px !important;
             border: 1px solid {HOP_TEAL_DARK} !important;
             overflow: hidden !important;
         }}
-        section[data-testid="stSidebar"] div[data-baseweb="input"] * {{
-            color: #2f3240 !important;
-            -webkit-text-fill-color: #2f3240 !important;
-        }}
-        section[data-testid="stSidebar"] div[data-baseweb="input"] input::placeholder {{
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] input::placeholder {{
             color: #8a8f9c !important;
             -webkit-text-fill-color: #8a8f9c !important;
             opacity: 1 !important;
