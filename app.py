@@ -1052,6 +1052,46 @@ SPENDING_BUCKET_BRACKETS = {
 }
 
 
+def render_item_mix_bars(label, pct, color) -> str:
+    pct_val = float(pct) if pct is not None else 0.0
+    return f"""
+    <div style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:13px; color:#2f3240; margin-bottom:4px;">
+            <span style="font-weight:600;">{html.escape(label)}</span>
+            <span style="font-weight:700;">{pct_val:g}%</span>
+        </div>
+        <div style="width:100%; height:8px; background:#EFEFF4; border-radius:999px; overflow:hidden;">
+            <div style="width:{min(pct_val, 100)}%; height:100%; background:{color}; border-radius:999px;"></div>
+        </div>
+    </div>
+    """
+
+
+def render_item_mix_card(premium_pct, core_pct, total_items, site_rows) -> str:
+    bars_html = render_item_mix_bars("Premium", premium_pct, "#6F5CFF") + render_item_mix_bars("Core", core_pct, "#D9D0FF")
+    sites_html = "".join(
+        f"""<div style="display:flex; justify-content:space-between; font-size:12px; color:#6b7280; padding:4px 0;">
+            <span>{html.escape(str(s))}</span><span>{int(t)} items</span>
+        </div>"""
+        for s, t in site_rows
+    )
+    return f"""
+    <div style="
+        background:#F5F3FF; border:1px solid #E2DBFF; border-radius:16px;
+        padding:18px 22px; margin-top:4px;
+    ">
+        <div style="font-size:13px; font-weight:700; color:#6F5CFF; letter-spacing:0.3px; margin-bottom:4px;">HOP ITEM MIX — PREMIUM VS CORE</div>
+        <div style="font-size:12px; color:#6b7280; margin-bottom:14px;">
+            {int(total_items):,} live items across sites in this neighbourhood. Premium = tagged 'Tier - Premium' or 'Selection - Organic'; everything else is Core.
+        </div>
+        {bars_html}
+        <div style="margin-top:10px; border-top:1px solid #E2DBFF; padding-top:10px;">
+            {sites_html}
+        </div>
+    </div>
+    """
+
+
 def render_spend_bracket_legend() -> str:
     rows_html = "".join(
         f"""
@@ -2233,6 +2273,28 @@ with tab_demo:
         detail_row = demo_work[demo_work["Neighbourhood"] == selected_demo_neighbourhood].iloc[0]
         st.markdown(clean_html(render_neighbourhood_full_card(detail_row)), unsafe_allow_html=True)
 
+        if selected_country == "UK":
+            offers_path, products_path, sites_path = Path("offers.csv"), Path("products.csv"), Path("hop_sites.csv")
+            if offers_path.exists() and products_path.exists() and sites_path.exists():
+                per_neighbourhood, per_site, mix_ok = load_premium_core_mix(str(offers_path), str(products_path), str(sites_path))
+                mix_row = per_neighbourhood[per_neighbourhood["Neighbourhood"] == selected_demo_neighbourhood] if mix_ok and not per_neighbourhood.empty else pd.DataFrame()
+                if not mix_row.empty:
+                    mix_row = mix_row.iloc[0]
+                    site_rows = per_site[per_site["Neighbourhood"] == selected_demo_neighbourhood][["Site Name", "Total"]].values.tolist()
+                    st.markdown(
+                        clean_html(render_item_mix_card(mix_row["Premium %"], mix_row["Core %"], mix_row["Total"], site_rows)),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        clean_html(f"""
+                        <div style="background:#F5F3FF; border:1px solid #E2DBFF; border-radius:16px; padding:14px 20px; margin-top:4px; font-size:13px; color:#6b7280;">
+                            No live Hop site in {html.escape(selected_demo_neighbourhood)} yet — item mix isn't available for this neighbourhood.
+                        </div>
+                        """),
+                        unsafe_allow_html=True,
+                    )
+
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
         # ---- 3) Spending Profile Map, full width ----
@@ -2343,80 +2405,6 @@ with tab_demo:
             use_container_width=True,
             height=420,
         )
-
-    # ---- 6) Hop Item Mix — Premium vs Core (UK only, live offers data) ----
-    if selected_country == "UK":
-        st.markdown(f"<div style='height:{24}px;'></div>", unsafe_allow_html=True)
-        st.divider()
-        st.subheader("Hop Item Mix — Premium vs Core")
-        st.caption(
-            "Premium = item tagged 'Tier - Premium' or 'Selection - Organic' in the live catalogue. "
-            "Everything else counts as Core. Based on currently active (live) offers only."
-        )
-
-        offers_path = Path("offers.csv")
-        products_path = Path("products.csv")
-        sites_path = Path("hop_sites.csv")
-
-        if not (offers_path.exists() and products_path.exists() and sites_path.exists()):
-            st.info(
-                "This needs three files in the project folder: an offers export (e.g. "
-                "'offers.csv'), 'products.csv', and 'hop_sites.csv'. Add whichever "
-                "is missing to unlock this section."
-            )
-        else:
-            per_neighbourhood, per_site, ok = load_premium_core_mix(str(offers_path), str(products_path), str(sites_path))
-            if not ok:
-                st.info("Couldn't load one of the required files — check the filenames match exactly.")
-            elif per_neighbourhood.empty:
-                st.info("No live offers matched to a known UK Hop site yet.")
-            else:
-                mix_city_col, mix_nbhd_col = st.columns(2)
-                with mix_city_col:
-                    mix_cities = sorted(per_neighbourhood["City"].unique().tolist())
-                    selected_mix_city = st.selectbox("City", mix_cities, key="mix_city_select")
-                with mix_nbhd_col:
-                    mix_neighbourhoods = sorted(
-                        per_neighbourhood.loc[per_neighbourhood["City"] == selected_mix_city, "Neighbourhood"].unique().tolist()
-                    )
-                    selected_mix_neighbourhood = st.selectbox("Neighbourhood", mix_neighbourhoods, key="mix_nbhd_select")
-
-                row = per_neighbourhood[
-                    (per_neighbourhood["City"] == selected_mix_city)
-                    & (per_neighbourhood["Neighbourhood"] == selected_mix_neighbourhood)
-                ]
-                if row.empty:
-                    st.info("No live offers for this neighbourhood yet.")
-                else:
-                    row = row.iloc[0]
-                    mix_kpi1, mix_kpi2, mix_kpi3 = st.columns(3)
-                    with mix_kpi1:
-                        st.markdown(clean_html(top_metric_card("Live Items", int(row["Total"]), f"{selected_mix_neighbourhood}, {selected_mix_city}", icon=ICON_GRID, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
-                    with mix_kpi2:
-                        st.markdown(clean_html(top_metric_card("Premium %", f"{row['Premium %']}%", f"{int(row['Premium'])} items", icon=ICON_TRENDING_UP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
-                    with mix_kpi3:
-                        st.markdown(clean_html(top_metric_card("Core %", f"{row['Core %']}%", f"{int(row['Core'])} items", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
-
-                    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
-
-                    mix_chart_col, mix_table_col = st.columns([1, 1.4], gap="large")
-                    with mix_chart_col:
-                        mix_pie_df = pd.DataFrame({"Tier": ["Premium", "Core"], "Items": [row["Premium"], row["Core"]]})
-                        fig_mix = px.pie(
-                            mix_pie_df, names="Tier", values="Items", hole=0.55,
-                            color="Tier", color_discrete_map={"Premium": "#6F5CFF", "Core": "#D9D0FF"},
-                        )
-                        fig_mix.update_traces(textinfo="percent+label", marker=dict(line=dict(color="white", width=2)))
-                        fig_mix.update_layout(height=280, margin=dict(r=0, t=10, l=0, b=0), showlegend=False)
-                        st.plotly_chart(fig_mix, use_container_width=True)
-
-                    with mix_table_col:
-                        st.markdown("**By site in this neighbourhood**")
-                        site_rows = per_site[
-                            (per_site["City"] == selected_mix_city)
-                            & (per_site["Neighbourhood"] == selected_mix_neighbourhood)
-                        ][["Site Name", "Premium", "Core", "Total"]]
-                        st.dataframe(site_rows, use_container_width=True, height=min(280, 48 + 35 * len(site_rows)))
 
 # =========================================================
 # TAB 4: ROLLOUT TRACKER (review-only, live from Google Sheets)
