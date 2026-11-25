@@ -111,7 +111,7 @@ COUNTRY_DATA_FILES = {
         "label": "United Kingdom",
         "producers": "uk_producers.csv",
         "creators": "local_market_creators.csv",
-        "trends": "local_market_trends.csv",
+        "trends": "uk_local_market_trends.csv",
         "demographics": "uk_neighbourhood_demographics.csv",
     },
     "UAE": {
@@ -794,8 +794,9 @@ def render_creator_table_html(df: pd.DataFrame) -> str:
 
 def build_trend_matching_prompt(trends_df: pd.DataFrame) -> str:
     """Build a ready-to-paste prompt for Claude/ChatGPT that lists whatever
-    trends are currently loaded (from local_market_trends.csv), so the
-    prompt text automatically updates if that file changes.
+    trends are currently loaded (from that country's trends CSV, per
+    COUNTRY_DATA_FILES), so the prompt text automatically updates if that
+    file changes.
     """
     lines = [
         "You are helping a food & drink buying team decide which candidate "
@@ -1938,7 +1939,7 @@ with tab_trends:
     selected_market = country_files["label"]
 
     if creators_df.empty:
-        st.info("No creator data found. Please load local_market_creators.csv.")
+        st.info(f"No creator data found. Please load '{country_files['creators']}'.")
     else:
         creator_count = len(creators_df)
         creators_work = creators_df.copy()
