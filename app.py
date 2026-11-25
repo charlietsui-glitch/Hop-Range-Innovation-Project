@@ -311,7 +311,7 @@ def get_display_image(row):
     return None
 
 
-def top_metric_card(label, value, subtitle, icon=None, icon_bg="#EEF0FF", icon_color="#6F5CFF", value_color="#2f3240", card_bg="#ffffff"):
+def top_metric_card(label, value, subtitle, icon=None, icon_bg="#EEF0FF", icon_color="#00ccbd", value_color="#2f3240", card_bg="#ffffff"):
     icon_html = ""
     if icon:
         icon_html = f"""
@@ -732,7 +732,7 @@ def render_creator_table_html(df: pd.DataFrame) -> str:
         if is_valid_link(example_link_raw):
             example_link_html = (
                 f'<a href="{html.escape(example_link_raw)}" target="_blank" rel="noopener noreferrer" '
-                f'style="color:#6F5CFF; font-weight:600; text-decoration:none;">View profile ↗</a>'
+                f'style="color:#00ccbd; font-weight:600; text-decoration:none;">View profile ↗</a>'
             )
         else:
             example_link_html = html.escape(example_link_raw)
@@ -828,7 +828,7 @@ def build_trend_matching_prompt(trends_df: pd.DataFrame) -> str:
 def render_catalogue_header_and_steps(trends_df: pd.DataFrame) -> str:
     step_icon_wrap = (
         "display:flex; align-items:center; justify-content:center; width:44px; height:44px; "
-        "min-width:44px; border-radius:999px; background:#6F5CFF; color:white; flex-shrink:0;"
+        "min-width:44px; border-radius:999px; background:#00ccbd; color:white; flex-shrink:0;"
     )
 
     return f"""
@@ -915,8 +915,8 @@ def render_catalogue_footer() -> str:
 
     return f"""
     <div>
-        <div style="background:#F5F3FF; border:1px solid #E2DBFF; border-radius:16px; padding:16px 20px; text-align:center; margin-bottom:14px;">
-            <div style="font-weight:700; color:#6F5CFF; font-size:15px;">Ready to get your ranked shortlist?</div>
+        <div style="background:#E0F7F4; border:1px solid #BFEEE8; border-radius:16px; padding:16px 20px; text-align:center; margin-bottom:14px;">
+            <div style="font-weight:700; color:#00ccbd; font-size:15px;">Ready to get your ranked shortlist?</div>
             <div style="font-size:13px; color:#6b7280; margin-top:2px;">Choose your preferred AI assistant to continue.</div>
         </div>
 
@@ -955,7 +955,7 @@ def render_neighbourhood_demographic_card(row) -> str:
         chips = [c.strip() for c in recommendations.split(";") if c.strip()]
         chips_html = "".join(
             f"""<span style="
-                display:inline-block; background:#EDEBFF; color:#6F5CFF;
+                display:inline-block; background:#D6F5F1; color:#00ccbd;
                 font-size:12px; font-weight:600; padding:5px 12px;
                 border-radius:999px; margin:0 6px 6px 0;
             ">{html.escape(c)}</span>"""
@@ -968,7 +968,7 @@ def render_neighbourhood_demographic_card(row) -> str:
         box-shadow:0 8px 20px rgba(17,24,39,0.05); padding:18px 22px; margin-bottom:8px;
     ">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-            <span style="color:#6F5CFF;">{ICON_MAP_PIN}</span>
+            <span style="color:#00ccbd;">{ICON_MAP_PIN}</span>
             <div style="font-size:18px; font-weight:800; color:#2f3240;">
                 {html.escape(display_value(row.get("Neighbourhood")))} — Who lives here
             </div>
@@ -1078,15 +1078,15 @@ def render_item_mix_card(premium_pct, core_pct, total_items, site_rows) -> str:
     )
     return f"""
     <div style="
-        background:#F5F3FF; border:1px solid #E2DBFF; border-radius:16px;
+        background:#E0F7F4; border:1px solid #BFEEE8; border-radius:16px;
         padding:18px 22px; margin-top:4px;
     ">
-        <div style="font-size:13px; font-weight:700; color:#6F5CFF; letter-spacing:0.3px; margin-bottom:4px;">HOP ITEM MIX — PREMIUM VS CORE</div>
+        <div style="font-size:13px; font-weight:700; color:#00ccbd; letter-spacing:0.3px; margin-bottom:4px;">HOP ITEM MIX — PREMIUM VS CORE</div>
         <div style="font-size:12px; color:#6b7280; margin-bottom:14px;">
             {int(total_items):,} live items across sites in this neighbourhood. Premium = tagged 'Tier - Premium' or 'Selection - Organic'; everything else is Core.
         </div>
         {bars_html}
-        <div style="margin-top:10px; border-top:1px solid #E2DBFF; padding-top:10px;">
+        <div style="margin-top:10px; border-top:1px solid #BFEEE8; padding-top:10px;">
             {sites_html}
         </div>
     </div>
@@ -1141,7 +1141,7 @@ def render_neighbourhood_full_card(row) -> str:
         chips = [c.strip() for c in recommendations.split(";") if c.strip()]
         chips_html = "".join(
             f"""<span style="
-                display:inline-block; background:#EDEBFF; color:#6F5CFF;
+                display:inline-block; background:#D6F5F1; color:#00ccbd;
                 font-size:12px; font-weight:600; padding:5px 12px;
                 border-radius:999px; margin:0 6px 6px 0;
             ">{html.escape(c)}</span>"""
@@ -1151,15 +1151,15 @@ def render_neighbourhood_full_card(row) -> str:
     tags = get_neighbourhood_tags(row)
     tags_html = "".join(
         f"""<span style="
-            display:inline-block; background:#F5F3FF; color:#6F5CFF;
+            display:inline-block; background:#E0F7F4; color:#00ccbd;
             font-size:11px; font-weight:700; padding:4px 10px;
-            border-radius:999px; margin:0 6px 6px 0; border:1px solid #E2DBFF;
+            border-radius:999px; margin:0 6px 6px 0; border:1px solid #BFEEE8;
         ">{html.escape(t)}</span>"""
         for t in tags
     )
 
     confidence = display_value(row.get("Confidence"))
-    confidence_style = CONFIDENCE_BADGE_STYLE.get(confidence, "background:#EEF0FF; color:#6F5CFF;")
+    confidence_style = CONFIDENCE_BADGE_STYLE.get(confidence, "background:#EEF0FF; color:#00ccbd;")
 
     detail_fields = [
         ("AGE / LIFE-STAGE SKEW", row.get("Age Life Stage Skew")),
@@ -1184,7 +1184,7 @@ def render_neighbourhood_full_card(row) -> str:
     ">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
             <div style="display:flex; align-items:center; gap:8px;">
-                <span style="color:#6F5CFF;">{ICON_MAP_PIN}</span>
+                <span style="color:#00ccbd;">{ICON_MAP_PIN}</span>
                 <div style="font-size:22px; font-weight:800; color:#2f3240;">
                     {html.escape(display_value(row.get("Neighbourhood")))}
                 </div>
@@ -1608,7 +1608,7 @@ with tab_range:
 
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     with kpi1:
-        st.markdown(clean_html(top_metric_card("Total Producers", len(filtered_df), "Across all neighbourhoods", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+        st.markdown(clean_html(top_metric_card("Total Producers", len(filtered_df), "Across all neighbourhoods", icon=ICON_USERS, icon_bg="#D6F5F1", icon_color="#00ccbd", card_bg="#E0F7F4")), unsafe_allow_html=True)
     with kpi2:
         st.markdown(clean_html(top_metric_card("Neighbourhoods", filtered_df["Neighbourhood"].nunique(), f"Across {country_files['label']}", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
     with kpi3:
@@ -2109,7 +2109,7 @@ with tab_trends:
         with creator_col1:
             st.markdown(clean_html(top_metric_card("Total Creators", creator_count, "Across 2 platforms", icon=ICON_USERS, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
         with creator_col2:
-            st.markdown(clean_html(top_metric_card("Total Followers", f"{total_followers:,}", "Combined audience", icon=ICON_USER_GROUP, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+            st.markdown(clean_html(top_metric_card("Total Followers", f"{total_followers:,}", "Combined audience", icon=ICON_USER_GROUP, icon_bg="#D6F5F1", icon_color="#00ccbd", card_bg="#E0F7F4")), unsafe_allow_html=True)
 
         st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
 
@@ -2258,7 +2258,7 @@ with tab_demo:
         with demo_kpi2:
             st.markdown(clean_html(top_metric_card("Halal Demand Areas", int(halal_count), "Flagged for halal range", icon=ICON_USERS, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3")), unsafe_allow_html=True)
         with demo_kpi3:
-            st.markdown(clean_html(top_metric_card("Vegan / Plant-based Areas", int(vegan_count), "Flagged for plant-based range", icon=ICON_GRID, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+            st.markdown(clean_html(top_metric_card("Vegan / Plant-based Areas", int(vegan_count), "Flagged for plant-based range", icon=ICON_GRID, icon_bg="#D6F5F1", icon_color="#00ccbd", card_bg="#E0F7F4")), unsafe_allow_html=True)
         with demo_kpi4:
             st.markdown(clean_html(top_metric_card("Premium-Tier Areas", int(premium_count), "Flagged for premium range", icon=ICON_TRENDING_UP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
 
@@ -2289,7 +2289,7 @@ with tab_demo:
                 else:
                     st.markdown(
                         clean_html(f"""
-                        <div style="background:#F5F3FF; border:1px solid #E2DBFF; border-radius:16px; padding:14px 20px; margin-top:4px; font-size:13px; color:#6b7280;">
+                        <div style="background:#E0F7F4; border:1px solid #BFEEE8; border-radius:16px; padding:14px 20px; margin-top:4px; font-size:13px; color:#6b7280;">
                             No live Hop site in {html.escape(selected_demo_neighbourhood)} yet — item mix isn't available for this neighbourhood.
                         </div>
                         """),
@@ -2356,7 +2356,7 @@ with tab_demo:
             else:
                 chips = "".join(
                     f"""<span style="
-                        display:inline-block; background:#F5F3FF; color:#6F5CFF; border:1px solid #E2DBFF;
+                        display:inline-block; background:#E0F7F4; color:#00ccbd; border:1px solid #BFEEE8;
                         font-size:13px; font-weight:700; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0;
                     ">{html.escape(n)}</span>"""
                     for n in matching["Neighbourhood"].tolist()
@@ -2469,7 +2469,7 @@ with tab_rollout:
 
             roll_kpi1, roll_kpi2, roll_kpi3, roll_kpi4 = st.columns(4)
             with roll_kpi1:
-                st.markdown(clean_html(top_metric_card("Candidates", total_candidates, "In this view", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+                st.markdown(clean_html(top_metric_card("Candidates", total_candidates, "In this view", icon=ICON_USERS, icon_bg="#D6F5F1", icon_color="#00ccbd", card_bg="#E0F7F4")), unsafe_allow_html=True)
             with roll_kpi2:
                 st.markdown(clean_html(top_metric_card("Live", int(live_count), "Fully onboarded", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
             with roll_kpi3:
@@ -2552,7 +2552,7 @@ with tab_rollout:
 
                 item_kpi1, item_kpi2, item_kpi3, item_kpi4 = st.columns(4)
                 with item_kpi1:
-                    st.markdown(clean_html(top_metric_card("Items Tracked", total_items, "In this view", icon=ICON_GRID, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+                    st.markdown(clean_html(top_metric_card("Items Tracked", total_items, "In this view", icon=ICON_GRID, icon_bg="#D6F5F1", icon_color="#00ccbd", card_bg="#E0F7F4")), unsafe_allow_html=True)
                 with item_kpi2:
                     st.markdown(clean_html(top_metric_card("Live Items", int(live_items), "Currently listed", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
                 with item_kpi3:
@@ -2797,8 +2797,8 @@ with tab_impact:
             month_word = "month" if months_count == 1 else "months"
             st.markdown(
                 clean_html(f"""
-                <div style="background:#F5F3FF; border:1px solid #E2DBFF; border-radius:14px; padding:14px 20px;">
-                    <div style="font-size:13px; color:#6F5CFF; font-weight:700;">REPORTING PERIOD</div>
+                <div style="background:#E0F7F4; border:1px solid #BFEEE8; border-radius:14px; padding:14px 20px;">
+                    <div style="font-size:13px; color:#00ccbd; font-weight:700;">REPORTING PERIOD</div>
                     <div style="font-size:15px; color:#2f3240; margin-top:4px;">
                         Headline period: <strong>{html.escape(headline_period)}</strong>
                         &middot; {months_count} complete {month_word} of Local Range performance data tracked so far since launch.
@@ -2816,7 +2816,7 @@ with tab_impact:
                     st.markdown(clean_html(top_metric_card("Local Range Orders", fmt_num(lr(context_orders_row)), f"Non-local: {fmt_num(nlr(context_orders_row))}", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
             with context_kpi_cols[1]:
                 if context_customers_row_early is not None:
-                    st.markdown(clean_html(top_metric_card("Customers Buying Local Range", fmt_num(lr(context_customers_row_early)), f"Non-local: {fmt_num(nlr(context_customers_row_early))}", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+                    st.markdown(clean_html(top_metric_card("Customers Buying Local Range", fmt_num(lr(context_customers_row_early)), f"Non-local: {fmt_num(nlr(context_customers_row_early))}", icon=ICON_USERS, icon_bg="#D6F5F1", icon_color="#00ccbd", card_bg="#E0F7F4")), unsafe_allow_html=True)
             with context_kpi_cols[2]:
                 if context_attach_row is not None:
                     st.markdown(clean_html(top_metric_card("% of Site Orders with Local Range", fmt_num(lr(context_attach_row), suffix="%"), "Adoption of Local Range so far", icon=ICON_TRENDING_UP, icon_bg="#E6F7EC", icon_color="#2E9E4F", card_bg="#F0FBF3", value_color="#2E9E4F")), unsafe_allow_html=True)
@@ -2831,7 +2831,7 @@ with tab_impact:
                 st.markdown(
                     clean_html(f"""
                     <div style="background:#ffffff; border:1px solid #ECEEF3; border-radius:14px; padding:18px 22px; box-shadow:0 6px 16px rgba(17,24,39,0.05);">
-                        <div style="font-size:12px; color:#6F5CFF; font-weight:700; margin-bottom:6px;">SUMMARY</div>
+                        <div style="font-size:12px; color:#00ccbd; font-weight:700; margin-bottom:6px;">SUMMARY</div>
                         <div style="font-size:14px; color:#2f3240; line-height:1.65;">{html.escape(summary_text)}</div>
                     </div>
                     """),
@@ -3036,7 +3036,7 @@ with tab_impact:
                     nonlocal_aof_val = pd.to_numeric(nlr(aof_row), errors="coerce")
                     if pd.notna(local_n) and pd.notna(nonlocal_n) and pd.notna(local_aof_val) and pd.notna(nonlocal_aof_val) and (local_n + nonlocal_n) > 0:
                         blended = (local_n * local_aof_val + nonlocal_n * nonlocal_aof_val) / (local_n + nonlocal_n)
-                        st.markdown(clean_html(top_metric_card("Hoxton Total AOF (computed)", fmt_num(blended), "Customer-weighted avg of Local + Non-Local", icon=ICON_USERS, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+                        st.markdown(clean_html(top_metric_card("Hoxton Total AOF (computed)", fmt_num(blended), "Customer-weighted avg of Local + Non-Local", icon=ICON_USERS, icon_bg="#D6F5F1", icon_color="#00ccbd", card_bg="#E0F7F4")), unsafe_allow_html=True)
 
             st.markdown(f"<div style='height:{24}px;'></div>", unsafe_allow_html=True)
             st.divider()
