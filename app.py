@@ -1391,7 +1391,27 @@ if not creators_df.empty and "Name / Handle" in creators_df.columns:
 # the option lists come from whichever country's producer file loaded above)
 # -----------------------
 neighbourhoods = ["All"] + sorted(df["Neighbourhood"].dropna().astype(str).unique().tolist())
-selected_neighbourhood = st.sidebar.selectbox("Neighbourhood", neighbourhoods, key=f"nbhd_{selected_country}")
+
+# Map each neighbourhood to its city so the dropdown can show e.g.
+# "Al Quoz (Dubai)" instead of a bare neighbourhood name — helpful once a
+# country spans multiple cities (UAE: Dubai/Abu Dhabi; Italy: Milan/
+# Florence/Rome) and it's not obvious at a glance which city a given
+# neighbourhood belongs to.
+if "City" in df.columns:
+    _dedup = df.dropna(subset=["Neighbourhood"]).drop_duplicates(subset=["Neighbourhood"])
+    neighbourhood_to_city = dict(zip(_dedup["Neighbourhood"].astype(str), _dedup["City"]))
+else:
+    neighbourhood_to_city = {}
+
+def _format_neighbourhood_option(n):
+    if n == "All":
+        return "All"
+    city = neighbourhood_to_city.get(n)
+    return f"{n} ({city})" if city else n
+
+selected_neighbourhood = st.sidebar.selectbox(
+    "Neighbourhood", neighbourhoods, format_func=_format_neighbourhood_option, key=f"nbhd_{selected_country}"
+)
 
 categories = ["All"] + sorted(df["Category"].dropna().astype(str).unique().tolist())
 selected_category = st.sidebar.selectbox("Category", categories, key=f"cat_{selected_country}")
