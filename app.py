@@ -568,6 +568,74 @@ def load_hop_catalogue(path_str: str) -> pd.DataFrame:
     return catalogue
 
 
+@st.cache_data
+def load_premium_core_mix(offers_path: str, products_path: str, sites_path: str):
+    """Join live offers -> product tags -> venue/neighbourhood lookup to
+    build a per-neighbourhood Premium vs Core item mix. Cached since offers
+    is a large file (40k+ rows) and this join shouldn't re-run every rerun.
+
+    Premium = product Tags contains 'Tier - Premium' or 'Selection - Organic'.
+    Everything else (blank, or only Alcohol/Tobacco/Vape/Pharma tags) = Core.
+    This is a simpler binary split than a 3-tier model, by design.
+
+    Returns (per_neighbourhood_df, per_site_df, ok) — ok is False if any of
+    the 3 required files are missing, in which case the two dataframes are
+    empty and the caller should show a setup message instead of a result.
+    """
+    for p in (offers_path, products_path, sites_path):
+        if not Path(p).exists():
+            return pd.DataFrame(), pd.DataFrame(), False
+
+    offers = pd.read_csv(offers_path, low_memory=False)
+    products = pd.read_csv(products_path)
+    sites = pd.read_csv(sites_path).fillna("")
+
+    # Only count what's actually live right now (the real customer-facing
+    # state), not whatever was last "set" during a transition.
+    if "Current state (not editable)" in offers.columns:
+        offers = offers[offers["Current state (not editable)"].astype(str).str.strip().str.upper() == "ACTIVE"]
+
+    tags = products[["Product code", "Tags"]].copy()
+    tags["Tags"] = tags["Tags"].fillna("")
+    tags["Tier"] = tags["Tags"].apply(
+        lambda t: "Premium" if ("Tier - Premium" in t or "Selection - Organic" in t) else "Core"
+    )
+
+    joined = offers.merge(tags[["Product code", "Tier"]], on="Product code", how="left")
+    joined["Tier"] = joined["Tier"].fillna("Core")
+
+    # Only UK rows with real venue-level detail (Venue Code populated) —
+    # other markets are city-level only in this file and have no join target.
+    uk_venues = sites[(sites["Country"] == "UK") & (sites["Venue Code"].astype(str).str.strip() != "")]
+    joined = joined.merge(
+        uk_venues[["Venue Code", "Site Name", "Neighbourhood", "City"]],
+        left_on="Venue codes", right_on="Venue Code", how="inner",
+    )
+
+    if joined.empty:
+        return pd.DataFrame(), pd.DataFrame(), True
+
+    per_neighbourhood = (
+        joined.groupby(["City", "Neighbourhood", "Tier"]).size().unstack(fill_value=0).reset_index()
+    )
+    for col in ("Premium", "Core"):
+        if col not in per_neighbourhood.columns:
+            per_neighbourhood[col] = 0
+    per_neighbourhood["Total"] = per_neighbourhood["Premium"] + per_neighbourhood["Core"]
+    per_neighbourhood["Premium %"] = (per_neighbourhood["Premium"] / per_neighbourhood["Total"] * 100).round(1)
+    per_neighbourhood["Core %"] = (per_neighbourhood["Core"] / per_neighbourhood["Total"] * 100).round(1)
+
+    per_site = (
+        joined.groupby(["City", "Neighbourhood", "Site Name", "Tier"]).size().unstack(fill_value=0).reset_index()
+    )
+    for col in ("Premium", "Core"):
+        if col not in per_site.columns:
+            per_site[col] = 0
+    per_site["Total"] = per_site["Premium"] + per_site["Core"]
+
+    return per_neighbourhood, per_site, True
+
+
 def match_catalogue_to_keywords(catalogue_df: pd.DataFrame, keywords: list, local_producer_names: set):
     """Match live catalogue rows to a trend's keywords (via brand or product
     name substring match), restrict to Live status, then flag which of those
@@ -1392,21 +1460,23 @@ if not creators_df.empty and "Name / Handle" in creators_df.columns:
 # above)
 # -----------------------
 
-# Optional, single consolidated store-status file covering every market,
-# one row per city, e.g.:
-#   City,Country,Store Status
-#   London,UK,live store
-#   Brighton,UK,"ranged, no store"
-# This has to come from your own systems (Snowflake export, etc.) — there's
-# no connector available here that can reach Deliveroo's internal data, so
-# this gracefully falls back to plain city names with no status suffix if
-# the file isn't present yet. Filtered to the selected country so a city
-# name repeated across markets (unlikely here, but possible) can't collide.
-_store_status_path = Path("hop_store_status.csv")
-if _store_status_path.exists():
-    _store_status_df = pd.read_csv(_store_status_path).fillna("")
-    _store_status_country = _store_status_df[_store_status_df["Country"].astype(str) == selected_country]
-    city_to_status = dict(zip(_store_status_country["City"].astype(str), _store_status_country["Store Status"].astype(str)))
+# Single consolidated sites file covering every market: venue-level detail
+# for UK (one row per physical site, used for the Premium/Core breakdown
+# feature too), city-level only for other markets (since no venue-level
+# breakdown exists there yet). Columns: Country, City, Neighbourhood,
+# Venue Code, Site Name, Store Status. This has to come from your own
+# systems (Snowflake export, etc.) — there's no connector available here
+# that can reach Deliveroo's internal data, so this gracefully falls back
+# to plain city names with no status suffix if the file isn't present yet.
+_sites_path = Path("hop_sites.csv")
+if _sites_path.exists():
+    _sites_df = pd.read_csv(_sites_path).fillna("")
+    _sites_country = _sites_df[_sites_df["Country"].astype(str) == selected_country]
+    # Collapse venue-level rows (UK has several per city) down to one status
+    # per city for the filter label, since the dropdown is city-level, not
+    # per-venue.
+    _city_status = _sites_country.groupby("City")["Store Status"].first()
+    city_to_status = _city_status.to_dict()
 else:
     city_to_status = {}
 
@@ -2273,6 +2343,80 @@ with tab_demo:
             use_container_width=True,
             height=420,
         )
+
+    # ---- 6) Hop Item Mix — Premium vs Core (UK only, live offers data) ----
+    if selected_country == "UK":
+        st.markdown(f"<div style='height:{24}px;'></div>", unsafe_allow_html=True)
+        st.divider()
+        st.subheader("Hop Item Mix — Premium vs Core")
+        st.caption(
+            "Premium = item tagged 'Tier - Premium' or 'Selection - Organic' in the live catalogue. "
+            "Everything else counts as Core. Based on currently active (live) offers only."
+        )
+
+        offers_path = Path("offers.csv")
+        products_path = Path("products.csv")
+        sites_path = Path("hop_sites.csv")
+
+        if not (offers_path.exists() and products_path.exists() and sites_path.exists()):
+            st.info(
+                "This needs three files in the project folder: an offers export (e.g. "
+                "'offers.csv'), 'products.csv', and 'hop_sites.csv'. Add whichever "
+                "is missing to unlock this section."
+            )
+        else:
+            per_neighbourhood, per_site, ok = load_premium_core_mix(str(offers_path), str(products_path), str(sites_path))
+            if not ok:
+                st.info("Couldn't load one of the required files — check the filenames match exactly.")
+            elif per_neighbourhood.empty:
+                st.info("No live offers matched to a known UK Hop site yet.")
+            else:
+                mix_city_col, mix_nbhd_col = st.columns(2)
+                with mix_city_col:
+                    mix_cities = sorted(per_neighbourhood["City"].unique().tolist())
+                    selected_mix_city = st.selectbox("City", mix_cities, key="mix_city_select")
+                with mix_nbhd_col:
+                    mix_neighbourhoods = sorted(
+                        per_neighbourhood.loc[per_neighbourhood["City"] == selected_mix_city, "Neighbourhood"].unique().tolist()
+                    )
+                    selected_mix_neighbourhood = st.selectbox("Neighbourhood", mix_neighbourhoods, key="mix_nbhd_select")
+
+                row = per_neighbourhood[
+                    (per_neighbourhood["City"] == selected_mix_city)
+                    & (per_neighbourhood["Neighbourhood"] == selected_mix_neighbourhood)
+                ]
+                if row.empty:
+                    st.info("No live offers for this neighbourhood yet.")
+                else:
+                    row = row.iloc[0]
+                    mix_kpi1, mix_kpi2, mix_kpi3 = st.columns(3)
+                    with mix_kpi1:
+                        st.markdown(clean_html(top_metric_card("Live Items", int(row["Total"]), f"{selected_mix_neighbourhood}, {selected_mix_city}", icon=ICON_GRID, icon_bg="#EDEBFF", icon_color="#6F5CFF", card_bg="#F5F3FF")), unsafe_allow_html=True)
+                    with mix_kpi2:
+                        st.markdown(clean_html(top_metric_card("Premium %", f"{row['Premium %']}%", f"{int(row['Premium'])} items", icon=ICON_TRENDING_UP, icon_bg="#FFF3E0", icon_color="#F4A94E", card_bg="#FFFBF0")), unsafe_allow_html=True)
+                    with mix_kpi3:
+                        st.markdown(clean_html(top_metric_card("Core %", f"{row['Core %']}%", f"{int(row['Core'])} items", icon=ICON_MAP_PIN, icon_bg="#E5F0FF", icon_color="#2F6BFF", card_bg="#EFF6FF")), unsafe_allow_html=True)
+
+                    st.markdown(f"<div style='height:{SECTION_GAP}px;'></div>", unsafe_allow_html=True)
+
+                    mix_chart_col, mix_table_col = st.columns([1, 1.4], gap="large")
+                    with mix_chart_col:
+                        mix_pie_df = pd.DataFrame({"Tier": ["Premium", "Core"], "Items": [row["Premium"], row["Core"]]})
+                        fig_mix = px.pie(
+                            mix_pie_df, names="Tier", values="Items", hole=0.55,
+                            color="Tier", color_discrete_map={"Premium": "#6F5CFF", "Core": "#D9D0FF"},
+                        )
+                        fig_mix.update_traces(textinfo="percent+label", marker=dict(line=dict(color="white", width=2)))
+                        fig_mix.update_layout(height=280, margin=dict(r=0, t=10, l=0, b=0), showlegend=False)
+                        st.plotly_chart(fig_mix, use_container_width=True)
+
+                    with mix_table_col:
+                        st.markdown("**By site in this neighbourhood**")
+                        site_rows = per_site[
+                            (per_site["City"] == selected_mix_city)
+                            & (per_site["Neighbourhood"] == selected_mix_neighbourhood)
+                        ][["Site Name", "Premium", "Core", "Total"]]
+                        st.dataframe(site_rows, use_container_width=True, height=min(280, 48 + 35 * len(site_rows)))
 
 # =========================================================
 # TAB 4: ROLLOUT TRACKER (review-only, live from Google Sheets)

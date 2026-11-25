@@ -1,0 +1,40 @@
+Country,City,Neighbourhood,Venue Code,Site Name,Store Status
+UK,Brighton,Hove,HOP_ANN_BRI,Ann Summers - Hove,live store
+UK,Cambridge,Cambridge South,HOP_ANN_CAM,Ann Summers - Clifton Road,live store
+UK,Bristol,Glenfrome Road,HOP_ANN_GLR,Ann Summers - Glenfrome Road,live store
+UK,London,Hoxton,HOP_ANN_HOX,Ann Summers - Yorkton Street,live store
+UK,Manchester,Beswick / Ashburys,HOP_ANN_MAN,Ann Summers - N Western Street,live store
+UK,London,White City,HOP_ANN_MIW,Ann Summers - Mitre Way,live store
+UK,London,Norbury,HOP_ANN_NOR,Ann Summers - Norbury,live store
+UK,London,Hoxton,HOP_HEALF_HOX,Healf - Yorkton Street,live store
+UK,London,White City,HOP_HEALF_MIW,Healf - Mitre Way,live store
+UK,London,Vauxhall,HOP_HEALF_VAU,Healf - Vauxhall,live store
+UK,Cambridge,Cambridge South,HOP_MAPLIN_CAM,Maplin - Clifton Road,live store
+UK,London,Hoxton,HOP_MAPLIN_HOX,Maplin - Yorkton Street,live store
+UK,London,White City,HOP_MAPLIN_MIW,Maplin - Mitre Way,live store
+UK,London,Norbury,HOP_MAPLIN_NOR,Maplin - Norbury,live store
+UK,Bristol,Glenfrome Road,HOP_MOR_BRI,Morrisons - Glenfrome Road,live store
+UK,London,Canning Town,HOP_MOR_CAT,Morrisons - Canning Town,live store
+UK,London,Norbury,HOP_MOR_NOR,Morrisons - Norbury,live store
+UK,London,Bloomsbury,HOP_MOR_NOS,Morrisons - New Oxford Street,live store
+UK,London,Vauxhall,HOP_MOR_VAU,Morrisons - Vauxhall,live store
+UK,London,Wandsworth,HOP_MOR_WAW,Morrisons - Merton Road,live store
+UK,London,White City,HOP_MOR_WHI,Morrisons - Mitre Way,live store
+UK,London,Acton,HOP_W_ACT,Waitrose - Acton Park,live store
+UK,London,Bermondsey,HOP_W_BER,Waitrose - Bermondsey,live store
+UK,Brighton,West Blatchington,HOP_W_BRI,Waitrose - St Josephs,live store
+UK,Cambridge,Cambridge South,HOP_W_CAM,Waitrose - Clifton Road,live store
+UK,London,Hoxton,HOP_W_HOX,Waitrose - Yorkton Street,live store
+UK,London,Kentish Town,HOP_W_KEN,Waitrose - Kentish Town,live store
+UK,Manchester,Piccadilly,HOP_W_MAN,Waitrose - N Western Street,live store
+France,Bordeaux,,,,not active
+France,Lille,,,,not active
+France,Lyon,,,,not active
+France,Marseille,,,,not active
+France,Paris,,,,not active
+Hong Kong,Hong Kong,,,,not active
+Italy,Florence,,,,live store
+Italy,Milan,,,,live store
+Italy,Rome,,,,live store
+UAE,Abu Dhabi,,,,live store
+UAE,Dubai,,,,live store
