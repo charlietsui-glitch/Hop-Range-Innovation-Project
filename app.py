@@ -109,10 +109,10 @@ PURPLE_SCALE = ["#D9D0FF", "#6F5CFF"]
 COUNTRY_DATA_FILES = {
     "UK": {
         "label": "United Kingdom",
-        "producers": "london_producers.csv",
+        "producers": "uk_producers.csv",
         "creators": "local_market_creators.csv",
         "trends": "local_market_trends.csv",
-        "demographics": "london_neighbourhood_demographics.csv",
+        "demographics": "uk_neighbourhood_demographics.csv",
     },
     "UAE": {
         "label": "United Arab Emirates",
