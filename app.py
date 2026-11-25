@@ -88,18 +88,18 @@ CATEGORY_TILES = {
 }
 DEFAULT_TILE = str(CATEGORY_TILE_DIR / "default.jpg")
 CATEGORY_PIE_COLORS = [
-    "#6F5CFF",
-    "#4B3AD5",
+    "#00ccbd",
+    "#007A70",
     "#2F6BFF",
     "#F4C84E",
     "#48B26B",
     "#FF8A80",
-    "#A06CD5",
+    "#66DED3",
     "#2E86C1",
     "#F78FB3",
     "#7F8C8D",
 ]
-PURPLE_SCALE = ["#D9D0FF", "#6F5CFF"]
+TEAL_SCALE = ["#B2EDE8", "#00ccbd"]
 
 # -----------------------
 # COUNTRY CONFIG
@@ -1035,11 +1035,11 @@ def spending_bucket(spending_text) -> str:
 
 
 SPENDING_BUCKET_COLORS = {
-    "Ultra-premium": "#4B3AD5",
-    "Premium": "#6F5CFF",
-    "Mixed": "#A99BFF",
-    "Mid-range": "#C9BFFF",
-    "Budget": "#E6E1FF",
+    "Ultra-premium": "#007A70",
+    "Premium": "#00ccbd",
+    "Mixed": "#66DED3",
+    "Mid-range": "#A3EAE3",
+    "Budget": "#E0F7F4",
 }
 
 # Illustrative only — not measured data. Placeholder brackets until real
@@ -1069,7 +1069,7 @@ def render_item_mix_bars(label, pct, color) -> str:
 
 
 def render_item_mix_card(premium_pct, core_pct, total_items, site_rows) -> str:
-    bars_html = render_item_mix_bars("Premium", premium_pct, "#6F5CFF") + render_item_mix_bars("Core", core_pct, "#D9D0FF")
+    bars_html = render_item_mix_bars("Premium", premium_pct, "#00ccbd") + render_item_mix_bars("Core", core_pct, "#B2EDE8")
     sites_html = "".join(
         f"""<div style="display:flex; justify-content:space-between; font-size:12px; color:#6b7280; padding:4px 0;">
             <span>{html.escape(str(s))}</span><span>{int(t)} items</span>
@@ -1673,7 +1673,7 @@ with tab_range:
                 y="Neighbourhood",
                 orientation="h",
                 color="Count",
-                color_continuous_scale=PURPLE_SCALE,
+                color_continuous_scale=TEAL_SCALE,
                 labels={"Count": "Producer Count"},
             )
             fig_nb.update_layout(
@@ -1706,7 +1706,7 @@ with tab_range:
             size="bubble_size",
             size_max=45,
             color="Producer_Count",
-            color_continuous_scale=PURPLE_SCALE,
+            color_continuous_scale=TEAL_SCALE,
             labels={"Producer_Count": "Producer Count"},
             hover_name="Neighbourhood",
             hover_data={
@@ -2151,7 +2151,7 @@ with tab_trends:
                     values="Count",
                     hole=0.62,
                     color="Platform",
-                    color_discrete_sequence=["#6F5CFF", "#4B3AD5", "#B8ADFF"],
+                    color_discrete_sequence=["#00ccbd", "#007A70", "#66DED3"],
                 )
                 fig_platform.update_traces(
                     textinfo="none",
@@ -2176,7 +2176,7 @@ with tab_trends:
                     y="Bucket",
                     orientation="h",
                     color="Count",
-                    color_continuous_scale=PURPLE_SCALE,
+                    color_continuous_scale=TEAL_SCALE,
                     labels={"Count": "Number of Creators"},
                 )
                 fig_focus.update_layout(
@@ -2492,7 +2492,7 @@ with tab_rollout:
                         y="Stage",
                         orientation="h",
                         color="Count",
-                        color_continuous_scale=PURPLE_SCALE,
+                        color_continuous_scale=TEAL_SCALE,
                     )
                     fig_stage.update_layout(
                         height=320,
@@ -2596,7 +2596,7 @@ with tab_rollout:
                             y="Item Status",
                             orientation="h",
                             color="Count",
-                            color_continuous_scale=PURPLE_SCALE,
+                            color_continuous_scale=TEAL_SCALE,
                         )
                         fig_item_status.update_layout(
                             height=300,
@@ -2635,8 +2635,8 @@ def render_delta_pill(label, lift_info, local_display=None, nonlocal_display=Non
     if not lift_info:
         return ""
     direction_word = "higher" if lift_info["direction"] == "higher" else "lower"
-    color = "#6F5CFF" if lift_info["direction"] == "higher" else "#8A8F9C"
-    bg = "#F5F3FF" if lift_info["direction"] == "higher" else "#F3F4F6"
+    color = "#00ccbd" if lift_info["direction"] == "higher" else "#8A8F9C"
+    bg = "#E0F7F4" if lift_info["direction"] == "higher" else "#F3F4F6"
     arrow = "▲" if lift_info["direction"] == "higher" else "▼"
     magnitude = f"{lift_info['value']}{lift_info['unit']}"
     metric_label = metric_name or label
@@ -2869,7 +2869,7 @@ with tab_impact:
                     })
                     fig_aov = px.bar(
                         aov_chart_df, x="Range", y="AOV (£)", color="Range", text="AOV (£)",
-                        color_discrete_map={"Local Range": "#6F5CFF", "Non-Local Range": "#D9D0FF"},
+                        color_discrete_map={"Local Range": "#00ccbd", "Non-Local Range": "#D9DDE2"},
                     )
                     fig_aov.update_traces(texttemplate="£%{text:.2f}", textposition="outside", showlegend=False)
                     fig_aov.update_layout(height=280, margin=dict(r=10, t=20, l=0, b=0), xaxis_title="", yaxis_title="AOV (£)")
@@ -2883,7 +2883,7 @@ with tab_impact:
                     })
                     fig_ipo = px.bar(
                         ipo_chart_df, x="Range", y="IPO", color="Range", text="IPO",
-                        color_discrete_map={"Local Range": "#6F5CFF", "Non-Local Range": "#D9D0FF"},
+                        color_discrete_map={"Local Range": "#00ccbd", "Non-Local Range": "#D9DDE2"},
                     )
                     fig_ipo.update_traces(texttemplate="%{text:.2f}", textposition="outside", showlegend=False)
                     fig_ipo.update_layout(height=280, margin=dict(r=10, t=20, l=0, b=0), xaxis_title="", yaxis_title="Items/Units per Order")
@@ -2920,8 +2920,8 @@ with tab_impact:
                 st.markdown(f"**{block_title} — {period_label}**")
                 pcol1, pcol2 = st.columns(2)
                 for pcol, row, range_name, colors in [
-                    (pcol1, nonlocal_row, "Non-Local Range", ["#6F5CFF", "#4B3AD5", "#B8ADFF"]),
-                    (pcol2, local_row, "Local Range", ["#2E9E4F", "#6FBF87", "#B8E0C4"]),
+                    (pcol1, nonlocal_row, "Non-Local Range", ["#8A8F9C", "#B9BDC6", "#DADDE2"]),
+                    (pcol2, local_row, "Local Range", ["#00ccbd", "#007A70", "#66DED3"]),
                 ]:
                     with pcol:
                         if row is not None:
