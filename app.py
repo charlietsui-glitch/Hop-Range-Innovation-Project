@@ -1387,10 +1387,50 @@ if not creators_df.empty and "Name / Handle" in creators_df.columns:
     creators_df["Profile Pic"] = creators_df["Name / Handle"].apply(resolve_creator_pic)
 
 # -----------------------
-# SIDEBAR FILTERS (Neighbourhood/Category/Search — rebuilt per country since
-# the option lists come from whichever country's producer file loaded above)
+# SIDEBAR FILTERS (City/Neighbourhood/Category/Search — rebuilt per country
+# since the option lists come from whichever country's producer file loaded
+# above)
 # -----------------------
-neighbourhoods = ["All"] + sorted(df["Neighbourhood"].dropna().astype(str).unique().tolist())
+
+# Optional, single consolidated store-status file covering every market,
+# one row per city, e.g.:
+#   City,Country,Store Status
+#   London,UK,live store
+#   Brighton,UK,"ranged, no store"
+# This has to come from your own systems (Snowflake export, etc.) — there's
+# no connector available here that can reach Deliveroo's internal data, so
+# this gracefully falls back to plain city names with no status suffix if
+# the file isn't present yet. Filtered to the selected country so a city
+# name repeated across markets (unlikely here, but possible) can't collide.
+_store_status_path = Path("hop_store_status.csv")
+if _store_status_path.exists():
+    _store_status_df = pd.read_csv(_store_status_path).fillna("")
+    _store_status_country = _store_status_df[_store_status_df["Country"].astype(str) == selected_country]
+    city_to_status = dict(zip(_store_status_country["City"].astype(str), _store_status_country["Store Status"].astype(str)))
+else:
+    city_to_status = {}
+
+def _format_city_option(c):
+    if c == "All":
+        return "All"
+    status = city_to_status.get(c)
+    return f"{c} · {status}" if status else c
+
+if "City" in df.columns:
+    city_options = ["All"] + sorted(df["City"].dropna().astype(str).unique().tolist())
+    selected_city = st.sidebar.selectbox(
+        "City", city_options, format_func=_format_city_option, key=f"city_{selected_country}"
+    )
+else:
+    selected_city = "All"
+
+# Neighbourhood options narrow to the selected city, if one's chosen
+if selected_city != "All" and "City" in df.columns:
+    neighbourhoods = ["All"] + sorted(
+        df.loc[df["City"] == selected_city, "Neighbourhood"].dropna().astype(str).unique().tolist()
+    )
+else:
+    neighbourhoods = ["All"] + sorted(df["Neighbourhood"].dropna().astype(str).unique().tolist())
 
 # Map each neighbourhood to its city so the dropdown can show e.g.
 # "Al Quoz (Dubai)" instead of a bare neighbourhood name — helpful once a
@@ -1423,6 +1463,9 @@ show_only_mapped = st.sidebar.checkbox("Show only rows with coordinates", value=
 # FILTER DATA
 # -----------------------
 filtered_df = df.copy()
+
+if selected_city != "All" and "City" in filtered_df.columns:
+    filtered_df = filtered_df[filtered_df["City"] == selected_city]
 
 if selected_neighbourhood != "All":
     filtered_df = filtered_df[filtered_df["Neighbourhood"] == selected_neighbourhood]
