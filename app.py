@@ -1597,7 +1597,7 @@ filtered_map_df = filtered_df.dropna(subset=["Latitude_num", "Longitude_num"]).c
 # -----------------------
 # MAIN CONTENT
 # -----------------------
-tab_range, tab_trends, tab_demo, tab_rollout, tab_impact = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights", "🚀 Rollout Tracker", "📊 Performance Tracking"])
+tab_range, tab_trends, tab_demo, tab_rollout, tab_impact = st.tabs(["🏪 Hyperlocal Range", "📈 Local Market Trends", "🧭 Neighbourhood Insights", "🚀 Rollout Tracker (UK)", "📊 Performance Tracking (UK)"])
 
 # =========================================================
 # TAB 1: HYPERLOCAL RANGE
@@ -2412,7 +2412,7 @@ with tab_demo:
 # =========================================================
 with tab_rollout:
     st.title("Rollout Tracker")
-    st.caption("Live review of onboarding progress — VMs update stages directly in the Google Sheet; this view refreshes from it.")
+    st.caption("Currently for UK · Live review of onboarding progress — VMs update stages directly in the Google Sheet; this view refreshes from it.")
 
     ROLLOUT_STAGES = ["Contacted", "Negotiating", "Contract Signed", "Onboarding", "Live"]
 
@@ -2730,7 +2730,7 @@ def parse_comparison_text(text):
 # =========================================================
 with tab_impact:
     st.title("Performance Tracking")
-    st.caption("Does the Local Range actually change how customers shop, and is it paying off commercially?")
+    st.caption("Currently for UK · Does the Local Range actually change how customers shop, and is it paying off commercially?")
 
     if not GSHEETS_AVAILABLE:
         st.warning(
@@ -2764,7 +2764,8 @@ with tab_impact:
             st.markdown(f"<div style='height:{TOP_ROW_GAP}px;'></div>", unsafe_allow_html=True)
 
             site_options = sorted(impact_df["Site"].dropna().astype(str).unique().tolist())
-            selected_site = st.selectbox("Site", site_options, key="impact_site_select") if site_options else None
+            default_site_index = site_options.index("All Sites (Total)") if "All Sites (Total)" in site_options else 0
+            selected_site = st.selectbox("Site", site_options, index=default_site_index, key="impact_site_select") if site_options else None
             site_df = impact_df[impact_df["Site"] == selected_site] if selected_site else impact_df
 
             def get(section, metric, period=None):
